@@ -1,0 +1,9 @@
+[Unit]
+Description=Energy Systems Supervisor
+
+[Service]
+Type=notify
+ExecStart=/usr/sbin/EnergySuper/EnergySuper
+
+[Install]
+WantedBy=multi-user.target
