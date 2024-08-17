@@ -1,0 +1,5 @@
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Release/net8.0/linux-x64/publish/appsettings.Development.json
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Release/net8.0/linux-x64/publish/appsettings.json
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Release/net8.0/linux-x64/publish/EnergySuper.pdb
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Release/net8.0/linux-x64/publish/EnergySuper.service
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Release/net8.0/linux-x64/publish/EnergySuper

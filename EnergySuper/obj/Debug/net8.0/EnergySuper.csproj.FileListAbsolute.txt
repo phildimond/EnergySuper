@@ -47,3 +47,5 @@
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net8.0/EnergySuper.pdb
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net8.0/EnergySuper.genruntimeconfig.cache
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net8.0/ref/EnergySuper.dll
+/home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net8.0/EnergySuper.sourcelink.json
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/EnergySuper.service

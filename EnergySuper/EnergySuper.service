@@ -4,6 +4,7 @@ Description=Energy Systems Supervisor
 [Service]
 Type=notify
 ExecStart=/usr/sbin/EnergySuper/EnergySuper
+WorkingDirectory=/usr/sbin/EnergySuper
 
 [Install]
 WantedBy=multi-user.target
