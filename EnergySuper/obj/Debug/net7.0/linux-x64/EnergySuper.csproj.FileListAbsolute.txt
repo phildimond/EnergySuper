@@ -229,3 +229,4 @@
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net7.0/linux-x64/EnergySuper.pdb
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net7.0/linux-x64/EnergySuper.genruntimeconfig.cache
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net7.0/linux-x64/ref/EnergySuper.dll
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net7.0/linux-x64/MQTTnet.dll

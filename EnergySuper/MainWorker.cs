@@ -2,17 +2,24 @@ namespace EnergySuper;
 
 public class MainWorker : BackgroundService
 {
-    private readonly ILogger<MainWorker> _logger;
+    private readonly ILogger<MainWorker>? _logger;
+    private readonly MQTTConnection _mqttConnection;
 
-    public MainWorker(ILogger<MainWorker> logger)
+    public MainWorker(ILogger<MainWorker>? logger)//, MQTTConnection mqttConnection)
     {
         _logger = logger;
+        _mqttConnection = new MQTTConnection("b", 1883, "u", "p");
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await LogMessage(LogLevel.Information, "The EnergySuper Main Worker started at: {time}", DateTimeOffset.Now);
 
+        if (Environment.UserInteractive)
+        {
+            Console.WriteLine("Running in an interactive environment!");
+        }
+        
         while (!stoppingToken.IsCancellationRequested)
         {
             await LogMessage(LogLevel.Information,"The EnergySuper Main Worker was still running at: {time}", DateTimeOffset.Now);
@@ -25,7 +32,7 @@ public class MainWorker : BackgroundService
 
     private async Task LogMessage(LogLevel logLevel, string message, params object?[] args)
     {
-        if (!_logger.IsEnabled(logLevel)) return;
+        if (_logger == null || !_logger.IsEnabled(logLevel)) return;
         switch (logLevel)
         {
             case LogLevel.Information:
