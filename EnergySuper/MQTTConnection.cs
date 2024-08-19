@@ -5,22 +5,21 @@ using MQTTnet.Protocol;
 
 namespace EnergySuper;
 
-public class MQTTConnection
+public class MqttConnection
 {
-    public string MqttBroker { get; set;} = string.Empty;
-    public int MqttPort { get; set; } = 1883;
-    public string MqttUsername { get; set; } = string.Empty;
-    public string MqttPassword { get; set; } = string.Empty;
-
+    private readonly string _mqttBroker;
+    private readonly int _mqttPort;
+    private readonly string _mqttUsername;
+    private readonly string _mqttPassword;
     private readonly IMqttClient _mqttClient;
     private readonly MqttClientOptions _clientOptions;
 
-    public MQTTConnection(string mqttBroker, int mqttPort, string mqttUsername, string mqttPassword)
+    public MqttConnection(string mqttBroker, int mqttPort, string mqttUsername, string mqttPassword)
     {
-        MqttBroker = mqttBroker;
-        MqttPort = mqttPort;
-        MqttUsername = mqttUsername;
-        MqttPassword = mqttPassword;
+        _mqttBroker = mqttBroker;
+        _mqttPort = mqttPort;
+        _mqttUsername = mqttUsername;
+        _mqttPassword = mqttPassword;
         
         var clientIdentifier = Guid.NewGuid().ToString();
 
@@ -32,36 +31,11 @@ public class MQTTConnection
 
         // Create MQTT client options
         _clientOptions = new MqttClientOptionsBuilder()
-            .WithTcpServer(MqttBroker, MqttPort) // MQTT broker address and port
-            .WithCredentials(MqttUsername, MqttPassword) // Set username and password
+            .WithTcpServer(_mqttBroker, _mqttPort) // MQTT broker address and port
+            .WithCredentials(_mqttUsername, _mqttPassword) // Set username and password
             .WithClientId(clientIdentifier)
             .WithCleanSession()
             .Build();
-    }
-
-    public void GetSettingsFromConsole()
-    {
-        Console.WriteLine("Need to configure the MQTT broker");
-        
-        Console.Write("MQTT Broker: ");
-        string? s = Console.ReadLine();
-        if (!string.IsNullOrEmpty(s)) MqttBroker = s;
-        else throw new ApplicationException("MQTT Broker is required");
-        
-        Console.Write("MQTT Port: ");
-        s = Console.ReadLine();
-        if (!string.IsNullOrEmpty(s)) MqttPort = int.Parse(s);
-        else throw new ApplicationException("MQTT Port is required");
-        
-        Console.Write("MQTT Username: ");
-        s = Console.ReadLine();
-        if (!string.IsNullOrEmpty(s)) MqttUsername = s;
-        else throw new ApplicationException("MQTT Username is required");
-
-        Console.Write("MQTT Password: ");
-        s = Console.ReadLine();
-        if (!string.IsNullOrEmpty(s)) MqttPassword = s;
-        else throw new ApplicationException("MQTT Password is required");
     }
 
     public async void Connect()
@@ -71,9 +45,10 @@ public class MQTTConnection
 
         // Connect to MQTT broker
         var t1 =
-            Task.Run<MqttClientConnectResult>(async () => await _mqttClient.ConnectAsync(_clientOptions));
+            //Task.Run<MqttClientConnectResult>(async () => await _mqttClient.ConnectAsync(_clientOptions));
+            await _mqttClient.ConnectAsync(_clientOptions);
 
-        if (t1.Result.ResultCode == MqttClientConnectResultCode.Success)
+        if (t1.ResultCode == MqttClientConnectResultCode.Success)
         {
             Console.WriteLine("Connected to MQTT broker successfully.");
 

@@ -2582,6 +2582,7 @@
   "projectFileDependencyGroups": {
     "net7.0": [
       "MQTTnet >= 4.3.6.1152",
+      "Microsoft.Extensions.Configuration >= 8.0.0",
       "Microsoft.Extensions.Hosting >= 8.0.0",
       "Microsoft.Extensions.Hosting.Systemd >= 8.0.0",
       "Microsoft.NET.ILLink.Analyzers >= 7.0.100-1.23401.1",
@@ -2634,6 +2635,10 @@
           "MQTTnet": {
             "target": "Package",
             "version": "[4.3.6.1152, )"
+          },
+          "Microsoft.Extensions.Configuration": {
+            "target": "Package",
+            "version": "[8.0.0, )"
           },
           "Microsoft.Extensions.Hosting": {
             "target": "Package",
