@@ -1,10 +1,12 @@
+using AmberElectricityAPI;
+
 namespace EnergySuper;
 
 public class MainWorker : BackgroundService
 {
     private readonly ILogger<MainWorker>? _logger;
     private readonly Settings _settings = new Settings();
-    private MqttConnection _mqttConnection;
+    private MqttConnection? _mqttConnection;
 
     public MainWorker(ILogger<MainWorker>? logger)//, MQTTConnection mqttConnection)
     {
@@ -29,20 +31,48 @@ Console.WriteLine("Broker Address: " + _settings.MqttBroker);
 Console.WriteLine("Broker Port: " + _settings.MqttPort);
 Console.WriteLine("Broker Username: " + _settings.MqttUsername);
 Console.WriteLine("Broker Password: " + _settings.MqttPassword);
+Console.WriteLine("Amber URL: " + _settings.AmberUrl);
+Console.WriteLine("Amber Token: " + _settings.AmberToken);
+Console.WriteLine("Amber Site ID: " + _settings.AmberSiteId);
             
         // Connect to the MQTT Broker. Log and exit on failure.
         _mqttConnection = new MqttConnection(_settings.MqttBroker, _settings.MqttPort, _settings.MqttUsername, _settings.MqttPassword);
+        _mqttConnection.MqttMessageReceived += (sender, args) =>
+        {
+            Console.Write($"Received message: {args.Topic}: {args.Payload}");
+            Console.WriteLine("\t... press Control-C to exit the program.");
+        };
         try { _mqttConnection.Connect(); }
         catch (Exception ex)
         {
             await LogMessage(LogLevel.Critical, "Failed to connect to mqtt: " + ex.Message);
             Environment.Exit(-1);
         }
+        
+        // Subscribe to a topic
+        string topic = "homeassistant/CurrentTime";
+        Exception? exr = await _mqttConnection.Subscribe(topic); 
+        if (exr is not null)
+            await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{topic} - Error {exr.Message}");
+
+        // Verify the Amber Electricity connection
+        try
+        {
+            AmberElectricity amberElectricity = new AmberElectricity(_settings.AmberToken, _settings.AmberSiteId);
+            var prices = amberElectricity.GetCurrentPrices(0, 0);
+            if (prices == null) throw new ApplicationException("No Amber prices found.");
+            Console.WriteLine($"Got {prices.Length} price records from Amber Electricity");
+        }
+        catch (Exception ex)
+        {
+            await LogMessage(LogLevel.Critical, "Failed to connect to Amber: " + ex.Message);
+            Environment.Exit(-1);
+        }
 
         // Main application loop
         while (!stoppingToken.IsCancellationRequested)
         {
-            await LogMessage(LogLevel.Information,"The EnergySuper Main Worker was still running at: {time}", DateTimeOffset.Now);
+            //await LogMessage(LogLevel.Information,"The EnergySuper Main Worker was still running at: {time}", DateTimeOffset.Now);
             Thread.Sleep(1000);
         }
 

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>dotnet-EnergySuper-38b90aeb-8058-415f-812f-12e9eabb7bb6</UserSecretsId>
@@ -15,5 +15,11 @@
         <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="8.0.0" />
         <None Update="EnergySuper.service" CopyToOutputDirectory="PreserveNewest" />
         <PackageReference Include="MQTTnet" Version="4.3.6.1152" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="AmberElectricityAPI">
+        <HintPath>..\..\AmberElectricityAPI\bin\Release\net8.0\AmberElectricityAPI.dll</HintPath>
+      </Reference>
     </ItemGroup>
 </Project>

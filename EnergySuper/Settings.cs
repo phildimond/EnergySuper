@@ -6,6 +6,12 @@ public class Settings
     public int MqttPort { get; set; } = 1883;
     public string MqttUsername { get; set; } = string.Empty;
     public string MqttPassword { get; set; } = string.Empty;
+    
+    public string AmberUrl { get; set; } = string.Empty;
+    
+    public string AmberToken { get; set; } = string.Empty;
+    
+    public string AmberSiteId { get; set; } = string.Empty;
 
     public string? Load()
     {
@@ -28,6 +34,15 @@ public class Settings
 
             cs = config.GetValue<string>("Settings:MqttPassword");
             if (!string.IsNullOrWhiteSpace(cs)) MqttPassword = cs;
+            
+            cs = config.GetValue<string>("Settings:AmberUrl");
+            if (!string.IsNullOrWhiteSpace(cs)) AmberUrl = cs;
+
+            cs = config.GetValue<string>("Settings:AmberToken");
+            if (!string.IsNullOrWhiteSpace(cs)) AmberToken = cs;
+
+            cs = config.GetValue<string>("Settings:AmberSiteId");
+            if (!string.IsNullOrWhiteSpace(cs)) AmberSiteId = cs;
         }
         catch (Exception ex)
         {
