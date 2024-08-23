@@ -66,30 +66,10 @@ public class MqttConnection
         
         string topic = arg.ApplicationMessage.Topic;
         string payload = Encoding.ASCII.GetString(arg.ApplicationMessage.PayloadSegment);
-        
-        if (MqttMessageReceived != null) MqttMessageReceived.Invoke( this,
+
+        MqttMessageReceived?.Invoke( this,
             new MqttMessageReceivedEventArgs() { Topic = topic, Payload = payload });
-        /*
-        Console.Write($"Received message: {rx}");
-        Console.WriteLine("\t... press Control-C to exit the program.");
-        */
-        
-        /*
-        var message = new MqttApplicationMessageBuilder()
-            .WithTopic("homeassistant/my_code_response")
-            .WithPayload($"Hello, MQTT! I got the time as " + rx)
-            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-            .Build();
 
-        var t3 =
-            Task.Run<MqttClientPublishResult>(async () => await _mqttClient.PublishAsync(message));
-
-        if (!t3.Result.IsSuccess)
-        {
-            Console.WriteLine("MQTT transmit failure: " + t3.Result.ReasonString);
-        }
-        */
-        
         return Task.CompletedTask;
         
     }
@@ -123,6 +103,33 @@ public class MqttConnection
             }
         }
         catch (Exception ex) { return ex; }
+
+        return null;
+    }
+    
+    /// <summary>
+    /// Send an MQTT message
+    /// </summary>
+    /// <param name="topic"></param>
+    /// <param name="payload"></param>
+    /// <param name="mqttQualityOfServiceLevel">QoS level, defaults to At Least Once</param>
+    /// <returns>null on success, reason message on failure</returns>
+    public async Task<string?> SendMessage(string topic, string payload,
+        MqttQualityOfServiceLevel mqttQualityOfServiceLevel = MqttQualityOfServiceLevel.AtLeastOnce)
+    {
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic(topic)
+            .WithPayload(payload)
+            .WithQualityOfServiceLevel(mqttQualityOfServiceLevel)
+            .Build();
+
+        
+            var result = await _mqttClient.PublishAsync(message);
+
+        if (!result.IsSuccess)
+        {
+            return "MQTT transmit failure: " + result.ReasonString;
+        }
 
         return null;
     }

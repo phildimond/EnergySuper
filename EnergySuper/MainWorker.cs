@@ -8,17 +8,27 @@ public class MainWorker : BackgroundService
     private readonly Settings _settings = new Settings();
     private MqttConnection? _mqttConnection;
 
-    public MainWorker(ILogger<MainWorker>? logger)//, MQTTConnection mqttConnection)
+    /// <summary>
+    /// Constructor
+    /// </summary>
+    /// <param name="logger"></param>
+    public MainWorker(ILogger<MainWorker>? logger)
     {
         _logger = logger;
     }
 
+    /// <summary>
+    /// Main worker execution method
+    /// </summary>
+    /// <param name="stoppingToken"></param>
+    /// <exception cref="ApplicationException"></exception>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await LogMessage(LogLevel.Information,"The EnergySuper Main Engine started executing at: {time}", DateTimeOffset.Now);
-        
+        await LogMessage(LogLevel.Information, "The EnergySuper Main Engine started executing at: {time}",
+            DateTimeOffset.Now);
+
         Thread.Sleep(1000);
-        
+
         // Load the settings. Bomb on failure
         string? slr = _settings.Load();
         if (slr != null)
@@ -27,31 +37,30 @@ public class MainWorker : BackgroundService
             Environment.Exit(-1);
         }
 
-Console.WriteLine("Broker Address: " + _settings.MqttBroker);
-Console.WriteLine("Broker Port: " + _settings.MqttPort);
-Console.WriteLine("Broker Username: " + _settings.MqttUsername);
-Console.WriteLine("Broker Password: " + _settings.MqttPassword);
-Console.WriteLine("Amber URL: " + _settings.AmberUrl);
-Console.WriteLine("Amber Token: " + _settings.AmberToken);
-Console.WriteLine("Amber Site ID: " + _settings.AmberSiteId);
-            
         // Connect to the MQTT Broker. Log and exit on failure.
-        _mqttConnection = new MqttConnection(_settings.MqttBroker, _settings.MqttPort, _settings.MqttUsername, _settings.MqttPassword);
+        _mqttConnection = new MqttConnection(_settings.MqttBroker, _settings.MqttPort, _settings.MqttUsername,
+            _settings.MqttPassword);
         _mqttConnection.MqttMessageReceived += (sender, args) =>
         {
             Console.Write($"Received message: {args.Topic}: {args.Payload}");
             Console.WriteLine("\t... press Control-C to exit the program.");
+            _mqttConnection.SendMessage("homeassistant/my_code_response",
+                $"Hello, MQTT! I got the time as " + args.Payload);
         };
-        try { _mqttConnection.Connect(); }
+
+        try
+        {
+            _mqttConnection.Connect();
+        }
         catch (Exception ex)
         {
             await LogMessage(LogLevel.Critical, "Failed to connect to mqtt: " + ex.Message);
             Environment.Exit(-1);
         }
-        
+
         // Subscribe to a topic
         string topic = "homeassistant/CurrentTime";
-        Exception? exr = await _mqttConnection.Subscribe(topic); 
+        Exception? exr = await _mqttConnection.Subscribe(topic);
         if (exr is not null)
             await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{topic} - Error {exr.Message}");
 
@@ -76,13 +85,27 @@ Console.WriteLine("Amber Site ID: " + _settings.AmberSiteId);
             Thread.Sleep(1000);
         }
 
-        try { _mqttConnection.Disconnect(); }
-        catch (Exception ex) { await LogMessage(LogLevel.Critical, "Failed to disconnect from mqtt: " + ex.Message); }
-        
-        await LogMessage(LogLevel.Information,"The EnergySuper Main Engine stopped executing at: {time}", DateTimeOffset.Now);
+        try
+        {
+            _mqttConnection.Disconnect();
+        }
+        catch (Exception ex)
+        {
+            await LogMessage(LogLevel.Critical, "Failed to disconnect from mqtt: " + ex.Message);
+        }
+
+        await LogMessage(LogLevel.Information, "The EnergySuper Main Engine stopped executing at: {time}",
+            DateTimeOffset.Now);
 
     }
 
+    /// <summary>
+    /// Manage message logging to systemd
+    /// </summary>
+    /// <param name="logLevel"></param>
+    /// <param name="message"></param>
+    /// <param name="args"></param>
+    /// <exception cref="ArgumentOutOfRangeException"></exception>
     private async Task LogMessage(LogLevel logLevel, string message, params object?[] args)
     {
         if (_logger == null || !_logger.IsEnabled(logLevel)) return;
@@ -112,5 +135,5 @@ Console.WriteLine("Amber Site ID: " + _settings.AmberSiteId);
                 throw new ArgumentOutOfRangeException(nameof(logLevel), logLevel, null);
         }
     }
-    
+
 }
