@@ -44,15 +44,22 @@ public class MqttConnection
             .Build();
     }
 
-    public void Connect()
+    /// <summary>
+    /// Connect to an MQTT broker and subscribe to message received events
+    /// </summary>
+    /// <returns>null on success, error message on failure</returns>
+    public async Task<string?> Connect()
     {
         
         // Connect to the MQTT broker
-        var t1 = Task.Run<MqttClientConnectResult>(async () => await _mqttClient.ConnectAsync(_clientOptions));
+        var result = await _mqttClient.ConnectAsync(_clientOptions);
         
-        Console.WriteLine("MQTT Connection result was " + t1.Result.ResultCode);
-            
+        Console.WriteLine("MQTT Connection result was " + result.ResultCode);
+        if (result.ResultCode != MqttClientConnectResultCode.Success) return result.ReasonString;
+        
         _mqttClient.ApplicationMessageReceivedAsync += MqttClientOnApplicationMessageReceivedAsync;
+
+        return null;
     }
 
     /// <summary>
@@ -96,11 +103,8 @@ public class MqttConnection
             if (r == null || r.Items == null || r.Items.Count == 0) 
                 return new ApplicationException($"No result returned from subscription request to topic '{topic}'");
             foreach (var item in r.Items)
-            {
-                Console.WriteLine($"\tItem TopicFilter={item.TopicFilter} ResultCode={item.ResultCode}");
                 if (item.ResultCode == MqttClientSubscribeResultCode.NotAuthorized) 
                     return new ApplicationException(item.ResultCode.ToString());
-            }
         }
         catch (Exception ex) { return ex; }
 
@@ -114,7 +118,7 @@ public class MqttConnection
     /// <param name="payload"></param>
     /// <param name="mqttQualityOfServiceLevel">QoS level, defaults to At Least Once</param>
     /// <returns>null on success, reason message on failure</returns>
-    public async Task<string?> SendMessage(string topic, string payload,
+    public async Task<string?> SendMessageAsync(string topic, string payload,
         MqttQualityOfServiceLevel mqttQualityOfServiceLevel = MqttQualityOfServiceLevel.AtLeastOnce)
     {
         var message = new MqttApplicationMessageBuilder()
@@ -122,9 +126,8 @@ public class MqttConnection
             .WithPayload(payload)
             .WithQualityOfServiceLevel(mqttQualityOfServiceLevel)
             .Build();
-
         
-            var result = await _mqttClient.PublishAsync(message);
+        var result = await _mqttClient.PublishAsync(message);
 
         if (!result.IsSuccess)
         {

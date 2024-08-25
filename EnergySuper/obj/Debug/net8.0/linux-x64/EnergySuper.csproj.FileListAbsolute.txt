@@ -232,3 +232,5 @@
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net8.0/linux-x64/EnergySuper.pdb
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net8.0/linux-x64/EnergySuper.genruntimeconfig.cache
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net8.0/linux-x64/ref/EnergySuper.dll
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/linux-x64/PowerWallLocalApi.dll
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/linux-x64/PowerWallLocalApi.pdb

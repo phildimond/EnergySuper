@@ -1,4 +1,5 @@
 using AmberElectricityAPI;
+using PowerWallLocalApi;
 
 namespace EnergySuper;
 
@@ -40,17 +41,21 @@ public class MainWorker : BackgroundService
         // Connect to the MQTT Broker. Log and exit on failure.
         _mqttConnection = new MqttConnection(_settings.MqttBroker, _settings.MqttPort, _settings.MqttUsername,
             _settings.MqttPassword);
-        _mqttConnection.MqttMessageReceived += (sender, args) =>
+        _mqttConnection.MqttMessageReceived += async (sender, args) => 
         {
             Console.Write($"Received message: {args.Topic}: {args.Payload}");
             Console.WriteLine("\t... press Control-C to exit the program.");
-            _mqttConnection.SendMessage("homeassistant/my_code_response",
+            var result = await _mqttConnection.SendMessageAsync("homeassistant/my_code_response",
                 $"Hello, MQTT! I got the time as " + args.Payload);
+            if (result != null)
+                Console.WriteLine($"Sending MQTT message failed. Reason: {result}");
         };
 
         try
         {
-            _mqttConnection.Connect();
+            var result = await _mqttConnection.Connect();
+            if (result != null) 
+                throw new ApplicationException(result);
         }
         catch (Exception ex)
         {
@@ -65,19 +70,32 @@ public class MainWorker : BackgroundService
             await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{topic} - Error {exr.Message}");
 
         // Verify the Amber Electricity connection
+        Console.WriteLine($"Amber URL = {_settings.AmberUrl}");
+        Console.WriteLine($"Amber Token = {_settings.AmberToken}");
+        Console.WriteLine($"Amber SiteID = {_settings.AmberSiteId}");
         try
         {
             AmberElectricity amberElectricity = new AmberElectricity(_settings.AmberToken, _settings.AmberSiteId);
-            var prices = amberElectricity.GetCurrentPrices(0, 0);
-            if (prices == null) throw new ApplicationException("No Amber prices found.");
-            Console.WriteLine($"Got {prices.Length} price records from Amber Electricity");
+            var prices = await amberElectricity.GetCurrentPricesAsync(0, 0);
+            if (prices.records == null) throw new ApplicationException($"No Amber prices found: Http response was {prices.httpStatusCode}");
+            Console.WriteLine($"Got {prices.records.Length} price records from Amber Electricity");
+            foreach (var rec in prices.records)
+            {
+                Console.Write($"{rec.ChannelType} = {rec.PerKwh}c/kWh ... ");
+            }
+            Console.WriteLine();
         }
         catch (Exception ex)
         {
             await LogMessage(LogLevel.Critical, "Failed to connect to Amber: " + ex.Message);
             Environment.Exit(-1);
         }
-
+        
+        // Connect to the PowerWall local API
+        PowerWall2Local localPowerWall2 = new PowerWall2Local(_settings.PowerWallLocalUrl, _settings.PowerWallLocalEmail, _settings.PowerWallLocalPassword);
+        if (localPowerWall2.Login().Success) Console.WriteLine("Successfully logged in to PowerWall local API.");
+        else Console.WriteLine("FAILED attempting to login to PowerWall local API.");
+        
         // Main application loop
         while (!stoppingToken.IsCancellationRequested)
         {

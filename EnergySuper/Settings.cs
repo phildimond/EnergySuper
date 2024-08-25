@@ -6,12 +6,12 @@ public class Settings
     public int MqttPort { get; set; } = 1883;
     public string MqttUsername { get; set; } = string.Empty;
     public string MqttPassword { get; set; } = string.Empty;
-    
     public string AmberUrl { get; set; } = string.Empty;
-    
     public string AmberToken { get; set; } = string.Empty;
-    
     public string AmberSiteId { get; set; } = string.Empty;
+    public string PowerWallLocalUrl { get; set; } = string.Empty;
+    public string PowerWallLocalEmail { get; set; } = string.Empty;
+    public string PowerWallLocalPassword { get; set; } = string.Empty;
 
     public string? Load()
     {
@@ -43,6 +43,16 @@ public class Settings
 
             cs = config.GetValue<string>("Settings:AmberSiteId");
             if (!string.IsNullOrWhiteSpace(cs)) AmberSiteId = cs;
+
+            cs = config.GetValue<string>("Settings:PowerWallLocalUrl");
+            if (!string.IsNullOrWhiteSpace(cs)) PowerWallLocalUrl = cs;
+
+            cs = config.GetValue<string>("Settings:PowerWallLocalEmail");
+            if (!string.IsNullOrWhiteSpace(cs)) PowerWallLocalEmail = cs;
+
+            cs = config.GetValue<string>("Settings:PowerWallLocalPassword");
+            if (!string.IsNullOrWhiteSpace(cs)) PowerWallLocalPassword = cs;
+
         }
         catch (Exception ex)
         {
