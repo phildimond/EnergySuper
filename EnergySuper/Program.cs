@@ -1,9 +1,9 @@
 namespace EnergySuper;
 
 /// <summary>
-/// Abstract so the compiler doesn't bitch that "Program is never instantiated".
+/// Main program entry point
 /// </summary>
-public abstract class Program
+public class Program
 {
     public static void Main(string[] args)
     {

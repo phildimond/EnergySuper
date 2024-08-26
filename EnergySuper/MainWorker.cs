@@ -11,7 +11,7 @@ public class MainWorker : BackgroundService
     private readonly Settings _settings = new Settings();
     private MqttConnection? _mqttConnection;
     private AmberElectricity _amberElectricity;
-    private DateTime _LastAmberPollTime = DateTime.MinValue;
+    private DateTime _lastAmberPollTime = DateTime.MinValue;
     
     /// <summary>
     /// Constructor
@@ -64,20 +64,16 @@ public class MainWorker : BackgroundService
             await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{topic} - Error {exr.Message}");
 
         // Verify the Amber Electricity connection
+        /*
         Console.WriteLine($"Amber URL = {_settings.AmberUrl}");
         Console.WriteLine($"Amber Token = {_settings.AmberToken}");
         Console.WriteLine($"Amber SiteID = {_settings.AmberSiteId}");
+        */
         try
         {
             _amberElectricity = new AmberElectricity(_settings.AmberToken, _settings.AmberSiteId);
             var prices = await _amberElectricity.GetCurrentPricesAsync(0, 0);
             if (prices.records == null) throw new ApplicationException($"Unable to retrieve API data: Http response was {prices.httpStatusCode}");
-            Console.WriteLine($"Got {prices.records.Length} price records from Amber Electricity");
-            foreach (var rec in prices.records)
-            {
-                Console.Write($"{rec.ChannelType} = {rec.PerKwh}c/kWh ... ");
-            }
-            Console.WriteLine();
         }
         catch (Exception ex)
         {
@@ -129,23 +125,29 @@ public class MainWorker : BackgroundService
                 //if (result != null) Console.WriteLine($"Sending MQTT message failed. Reason: {result}");
                 
                 // If we're due to update Amber data, do that....
-                if (DateTime.Now - _LastAmberPollTime > TimeSpan.FromSeconds(_settings.AmberApiReadFrequencyInSeconds))
+                if (DateTime.Now - _lastAmberPollTime > TimeSpan.FromSeconds(_settings.AmberApiReadFrequencyInSeconds))
                 {
-                    _LastAmberPollTime = DateTime.Now;
-                    var prices = await _amberElectricity.GetCurrentPricesAsync(0, 0);
-                    if (prices.records == null) throw new ApplicationException($"Unable to retrieve API data: Http response was {prices.httpStatusCode}");
-                    Console.WriteLine($"Got {prices.records.Length} price records from Amber Electricity");
-                    foreach (var rec in prices.records)
-                    {
-                        Console.Write($"{rec.ChannelType} = {rec.PerKwh}c/kWh ... ");
-                    }
-                    Console.WriteLine();
+                    _lastAmberPollTime = DateTime.Now;
+                    UpdateAmberInfo(_amberElectricity);
                 }
                 break;
             default: await LogMessage(LogLevel.Error, $"MQTT message received from unexpected topic [{args.Topic}]");
                 break;
         }
     }
+
+    private async void UpdateAmberInfo(AmberElectricity amberElectricity)
+    {
+        var prices = await _amberElectricity.GetCurrentPricesAsync(0, 0);
+        if (prices.records == null) throw new ApplicationException($"Unable to retrieve API data: Http response was {prices.httpStatusCode}");
+        Console.Write($"{DateTime.Now:HH:mm:ss} Amber Electricity prices: ");
+        foreach (var rec in prices.records)
+        {
+            Console.Write($"{rec.ChannelType} = {rec.PerKwh}c/kWh ... ");
+        }
+        Console.WriteLine();
+    }
+    
     /// <summary>
     /// Manage message logging to systemd
     /// </summary>
