@@ -12,6 +12,7 @@ public class Settings
     public string PowerWallLocalUrl { get; set; } = string.Empty;
     public string PowerWallLocalEmail { get; set; } = string.Empty;
     public string PowerWallLocalPassword { get; set; } = string.Empty;
+    public int AmberApiReadFrequencyInSeconds { get; set; } = 60;
 
     public string? Load()
     {
@@ -26,8 +27,7 @@ public class Settings
             string? cs = config.GetValue<string>("Settings:MqttBroker");
             if (!string.IsNullOrWhiteSpace(cs)) MqttBroker = cs;
             
-            cs = config.GetValue<string>("Settings:MqttPort");
-            if (!string.IsNullOrWhiteSpace(cs)) MqttPort = Convert.ToInt32(cs);
+            MqttPort = config.GetValue<int>("Settings:MqttPort");
 
             cs = config.GetValue<string>("Settings:MqttUsername");
             if (!string.IsNullOrWhiteSpace(cs)) MqttUsername = cs;
@@ -53,6 +53,8 @@ public class Settings
             cs = config.GetValue<string>("Settings:PowerWallLocalPassword");
             if (!string.IsNullOrWhiteSpace(cs)) PowerWallLocalPassword = cs;
 
+            AmberApiReadFrequencyInSeconds = config.GetValue<int>("Settings:AmberApiReadFrequencyInSeconds");
+            
         }
         catch (Exception ex)
         {

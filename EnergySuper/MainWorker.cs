@@ -1,4 +1,6 @@
+using System.Runtime.InteropServices.JavaScript;
 using AmberElectricityAPI;
+using EnergySuper.EventArgsAndHandlers;
 using PowerWallLocalApi;
 
 namespace EnergySuper;
@@ -8,7 +10,9 @@ public class MainWorker : BackgroundService
     private readonly ILogger<MainWorker>? _logger;
     private readonly Settings _settings = new Settings();
     private MqttConnection? _mqttConnection;
-
+    private AmberElectricity _amberElectricity;
+    private DateTime _LastAmberPollTime = DateTime.MinValue;
+    
     /// <summary>
     /// Constructor
     /// </summary>
@@ -39,18 +43,8 @@ public class MainWorker : BackgroundService
         }
 
         // Connect to the MQTT Broker. Log and exit on failure.
-        _mqttConnection = new MqttConnection(_settings.MqttBroker, _settings.MqttPort, _settings.MqttUsername,
-            _settings.MqttPassword);
-        _mqttConnection.MqttMessageReceived += async (sender, args) => 
-        {
-            Console.Write($"Received message: {args.Topic}: {args.Payload}");
-            Console.WriteLine("\t... press Control-C to exit the program.");
-            var result = await _mqttConnection.SendMessageAsync("homeassistant/my_code_response",
-                $"Hello, MQTT! I got the time as " + args.Payload);
-            if (result != null)
-                Console.WriteLine($"Sending MQTT message failed. Reason: {result}");
-        };
-
+        _mqttConnection = new MqttConnection(_settings.MqttBroker, _settings.MqttPort, _settings.MqttUsername, _settings.MqttPassword);
+        _mqttConnection.MqttMessageReceived += MqttMessageReceivedHandler;
         try
         {
             var result = await _mqttConnection.Connect();
@@ -75,9 +69,9 @@ public class MainWorker : BackgroundService
         Console.WriteLine($"Amber SiteID = {_settings.AmberSiteId}");
         try
         {
-            AmberElectricity amberElectricity = new AmberElectricity(_settings.AmberToken, _settings.AmberSiteId);
-            var prices = await amberElectricity.GetCurrentPricesAsync(0, 0);
-            if (prices.records == null) throw new ApplicationException($"No Amber prices found: Http response was {prices.httpStatusCode}");
+            _amberElectricity = new AmberElectricity(_settings.AmberToken, _settings.AmberSiteId);
+            var prices = await _amberElectricity.GetCurrentPricesAsync(0, 0);
+            if (prices.records == null) throw new ApplicationException($"Unable to retrieve API data: Http response was {prices.httpStatusCode}");
             Console.WriteLine($"Got {prices.records.Length} price records from Amber Electricity");
             foreach (var rec in prices.records)
             {
@@ -117,6 +111,41 @@ public class MainWorker : BackgroundService
 
     }
 
+    /// <summary>
+    /// Process received MQTT messages 
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="args"></param>
+    private async void MqttMessageReceivedHandler(object? sender, MqttMessageReceivedEventArgs args)
+    {
+        //Console.Write($"Received message: {args.Topic}: {args.Payload}");
+        //Console.WriteLine("\t... press Control-C to exit the program.");
+        switch (args.Topic)
+        {
+            case "homeassistant/CurrentTime":
+                if (_mqttConnection == null) throw new ApplicationException("MQTT connection is null in MqttMessageReceivedHandler");
+                //var result = await _mqttConnection.SendMessageAsync("homeassistant/my_code_response",
+                //    $"Hello, MQTT! I got the time as " + args.Payload);
+                //if (result != null) Console.WriteLine($"Sending MQTT message failed. Reason: {result}");
+                
+                // If we're due to update Amber data, do that....
+                if (DateTime.Now - _LastAmberPollTime > TimeSpan.FromSeconds(_settings.AmberApiReadFrequencyInSeconds))
+                {
+                    _LastAmberPollTime = DateTime.Now;
+                    var prices = await _amberElectricity.GetCurrentPricesAsync(0, 0);
+                    if (prices.records == null) throw new ApplicationException($"Unable to retrieve API data: Http response was {prices.httpStatusCode}");
+                    Console.WriteLine($"Got {prices.records.Length} price records from Amber Electricity");
+                    foreach (var rec in prices.records)
+                    {
+                        Console.Write($"{rec.ChannelType} = {rec.PerKwh}c/kWh ... ");
+                    }
+                    Console.WriteLine();
+                }
+                break;
+            default: await LogMessage(LogLevel.Error, $"MQTT message received from unexpected topic [{args.Topic}]");
+                break;
+        }
+    }
     /// <summary>
     /// Manage message logging to systemd
     /// </summary>
