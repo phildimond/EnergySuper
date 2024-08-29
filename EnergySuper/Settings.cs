@@ -13,6 +13,7 @@ public class Settings
     public string PowerWallLocalEmail { get; set; } = string.Empty;
     public string PowerWallLocalPassword { get; set; } = string.Empty;
     public int AmberApiReadFrequencyInSeconds { get; set; } = 60;
+    public int Pw2LocalApiReadFrequencyInSeconds { get; set; } = 60;
 
     public string? Load()
     {
@@ -55,6 +56,7 @@ public class Settings
 
             AmberApiReadFrequencyInSeconds = config.GetValue<int>("Settings:AmberApiReadFrequencyInSeconds");
             
+            Pw2LocalApiReadFrequencyInSeconds = config.GetValue<int>("Settings:Pw2LocalApiReadFrequencyInSeconds");
         }
         catch (Exception ex)
         {

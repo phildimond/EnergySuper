@@ -22,7 +22,7 @@
         <HintPath>..\..\AmberElectricityAPI\bin\Release\net8.0\AmberElectricityAPI.dll</HintPath>
       </Reference>
       <Reference Include="PowerWallLocalApi">
-        <HintPath>..\..\PowerWall2\bin\Debug\net8.0\PowerWallLocalApi.dll</HintPath>
+        <HintPath>..\..\TeslaApi\PowerWallLocalApi\bin\Release\net8.0\PowerWallLocalApi.dll</HintPath>
       </Reference>
     </ItemGroup>
 </Project>
