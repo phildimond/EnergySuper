@@ -49,3 +49,8 @@
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net8.0/ref/EnergySuper.dll
 /home/phillip/source/c#/EnergySuper/EnergySuper/obj/Debug/net8.0/EnergySuper.sourcelink.json
 /home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/EnergySuper.service
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/MQTTnet.dll
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/AmberElectricityAPI.dll
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/AmberElectricityAPI.pdb
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/PowerWallLocalApi.dll
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/PowerWallLocalApi.pdb

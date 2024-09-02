@@ -5,8 +5,6 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>dotnet-EnergySuper-38b90aeb-8058-415f-812f-12e9eabb7bb6</UserSecretsId>
-        <PublishSingleFile>true</PublishSingleFile>
-        <SelfContained>true</SelfContained>
     </PropertyGroup>
 
     <ItemGroup>
@@ -19,10 +17,10 @@
 
     <ItemGroup>
       <Reference Include="AmberElectricityAPI">
-        <HintPath>..\..\AmberElectricityAPI\bin\Release\net8.0\AmberElectricityAPI.dll</HintPath>
+        <HintPath>..\..\AmberElectricityAPI\bin\Release\net8.0\publish\AmberElectricityAPI.dll</HintPath>
       </Reference>
       <Reference Include="PowerWallLocalApi">
-        <HintPath>..\..\TeslaApi\PowerWallLocalApi\bin\Release\net8.0\PowerWallLocalApi.dll</HintPath>
+        <HintPath>..\..\TeslaApi\PowerWallLocalApi\bin\Release\net8.0\publish\PowerWallLocalApi.dll</HintPath>
       </Reference>
     </ItemGroup>
 </Project>
