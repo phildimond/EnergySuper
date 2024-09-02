@@ -238,7 +238,10 @@ public class MainWorker : BackgroundService
             throw new ApplicationException($"Error attempting to login to PowerWall2 Local API.");
         var localPwMeters = powerWallLocal.AggregateMeters();
         if (localPwMeters == null)
-            throw new ApplicationException($"Unable to retrieve PowerWall2 Local API data");//: Http response was {prices.httpStatusCode}");
+            throw new ApplicationException($"Unable to retrieve PowerWall2 Local API data");
+        var charge = powerWallLocal.GetStateOfEnergy();
+        if (charge == null)
+            throw new ApplicationException($"Unable to retrieve PowerWall2 Local API data");
         var result = _localPowerWall2.Logout();
         if (!result.success)
             throw new ApplicationException($"Error attempting to log out of PowerWall2 Local API. Http response was {result.httpStatusCode}");
@@ -248,7 +251,8 @@ public class MainWorker : BackgroundService
         _currentData.GridPowerKw = localPwMeters.Site.InstantPower / 1000;
         _currentData.SolarPowerKw = localPwMeters.Solar.InstantPower / 1000;
         Console.WriteLine($"{DateTime.Now:HH:mm:ss} PowerWall: House = {_currentData.LoadPowerKw:0.000}kW, Solar = {_currentData.SolarPowerKw:0.000}kW, " +
-                          $"Grid = {_currentData.GridPowerKw:0.000}kW, Battery = {_currentData.BatteryPowerKw:0.000}kW");
+                          $"Grid = {_currentData.GridPowerKw:0.000}kW, Battery = {_currentData.BatteryPowerKw:0.000}kW, " +
+                          $"Charge = {charge.Percentage:0.000}%");
     }
     
     /// <summary>
