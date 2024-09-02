@@ -15,6 +15,7 @@ public class MainWorker : BackgroundService
     private DateTime _lastAmberPollTime = DateTime.MinValue;
     private PowerWall2Local _localPowerWall2;
     private DateTime _lastPowerWall2LocalPollTime = DateTime.MinValue;
+    private CurrentData _currentData = new CurrentData();
     
     /// <summary>
     /// Constructor
@@ -46,11 +47,6 @@ public class MainWorker : BackgroundService
         }
 
         // Verify the Amber Electricity connection
-        /*
-        Console.WriteLine($"Amber URL = {_settings.AmberUrl}");
-        Console.WriteLine($"Amber Token = {_settings.AmberToken}");
-        Console.WriteLine($"Amber SiteID = {_settings.AmberSiteId}");
-        */
         try
         {
             _amberElectricity = new AmberElectricity(_settings.AmberToken, _settings.AmberSiteId);
@@ -168,18 +164,55 @@ public class MainWorker : BackgroundService
     /// <exception cref="ApplicationException"></exception>
     private async void UpdateAmberInfo(AmberElectricity amberElectricity)
     {
-        var prices = await amberElectricity.GetSitePricesAsync(DateTime.Today, DateTime.Today.AddDays(1));
-        //var prices = await _amberElectricity.GetCurrentPricesAsync(0, 0);
-        if (prices.recs == null) 
+        var prices = await amberElectricity.GetCurrentPricesAsync(1,0,30);
+        if (prices.records == null) 
             throw new ApplicationException($"Unable to retrieve Amber Site Prices: Http response was {prices.httpStatusCode}");
 
-        Console.Write($"{DateTime.Now:HH:mm:ss} Amber Electricity prices: ");
-        foreach (var rec in prices.recs)
+        // Process the prices
+        foreach (var rec in prices.records)
         {
-            if (rec.IntervalType == IntervalTypeEnum.CurrentInterval)
-                Console.Write($"{rec.ChannelType} = {rec.PerKwh}c/kWh ... ");
+            switch (rec.ChannelType)
+            {
+                case ChannelTypeEnum.general:
+                    if (rec.IntervalType == IntervalTypeEnum.CurrentInterval)
+                        _currentData.CurrentPowerPriceBuy = rec.PerKwh;
+                    if (rec.IntervalType == IntervalTypeEnum.ForecastInterval)
+                        _currentData.ForecastPowerPriceBuy = rec.PerKwh;
+                    break;
+                case ChannelTypeEnum.feedIn:
+                    if (rec.IntervalType == IntervalTypeEnum.CurrentInterval)
+                        _currentData.CurrentPowerPriceSell = rec.PerKwh;
+                    if (rec.IntervalType == IntervalTypeEnum.ForecastInterval)
+                        _currentData.ForecastPowerPriceSell = rec.PerKwh;
+                    break;
+                case ChannelTypeEnum.controlledLoad:
+                    if (rec.IntervalType == IntervalTypeEnum.CurrentInterval)
+                        _currentData.CurrentPowerPriceControlledLoad = rec.PerKwh;
+                    if (rec.IntervalType == IntervalTypeEnum.ForecastInterval)
+                        _currentData.ForecastPowerPriceControlledLoad = rec.PerKwh;
+                    break;
+                case ChannelTypeEnum.unknown:
+                    await LogMessage(LogLevel.Error,
+                        $"Received a price for the 'Unknown' Channel Type from Amber.");
+                    break;
+                    break;
+                default:
+                    await LogMessage(LogLevel.Error, $"Unrecognised Channel Type from Amber: {rec.ChannelType}");
+                    break;
+                    break;
+            }
         }
-        Console.WriteLine();
+        _currentData.LastPriceUpdate = DateTime.Now;
+        Console.WriteLine($"{DateTime.Now:HH:mm:ss} Amber Electricity current prices:  Buy = {_currentData.CurrentPowerPriceBuy:0.000}c/kWh, " +
+                          $"Sell = {_currentData.CurrentPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.CurrentPowerPriceControlledLoad:0.000}c/kWh");
+        Console.WriteLine($"{DateTime.Now:HH:mm:ss} Amber Electricity forecast prices: Buy = {_currentData.ForecastPowerPriceBuy:0.000}c/kWh, " +
+                          $"Sell = {_currentData.ForecastPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.ForecastPowerPriceControlledLoad:0.000}c/kWh");
+        if (_amberElectricity.RateApiCallsRemainingThisWindow != null && _amberElectricity.RateSecsToWindowReset != null 
+                                                                      && _amberElectricity.RateMaxCallsPerWindow != null
+                                                                      && _amberElectricity.RateSecsPerWindow != null)
+            Console.WriteLine($"{DateTime.Now:HH:mm:ss} Amber Electricity API rate info:   {_amberElectricity.RateApiCallsRemainingThisWindow} " +
+                              $"of {_amberElectricity.RateMaxCallsPerWindow} calls remaining in the next {_amberElectricity.RateSecsToWindowReset} seconds " +
+                              $"of the {_amberElectricity.RateSecsPerWindow} second window.");
         
         /*
         var usage = amberElectricity.GetSiteUsage(DateTime.Today.AddDays(-1), DateTime.Today);
@@ -209,10 +242,13 @@ public class MainWorker : BackgroundService
         var result = _localPowerWall2.Logout();
         if (!result.success)
             throw new ApplicationException($"Error attempting to log out of PowerWall2 Local API. Http response was {result.httpStatusCode}");
-        Console.WriteLine($"PowerWall 2 Battery power now = {(localPwMeters.Battery.InstantPower/1000):0.000}kW");
-        Console.WriteLine($"PowerWall 2 Site power now = {(localPwMeters.Site.InstantPower/1000):0.000}kW");
-        Console.WriteLine($"PowerWall 2 Load power now = {(localPwMeters.Load.InstantPower/1000):0.000}kW");
-        Console.WriteLine($"PowerWall 2 Solar power now = {(localPwMeters.Solar.InstantPower/1000):0.000}kW");
+        _currentData.LastPowerUpdate = DateTime.Now;
+        _currentData.LoadPowerKw = localPwMeters.Load.InstantPower / 1000;
+        _currentData.BatteryPowerKw = localPwMeters.Battery.InstantPower / 1000;
+        _currentData.GridPowerKw = localPwMeters.Site.InstantPower / 1000;
+        _currentData.SolarPowerKw = localPwMeters.Solar.InstantPower / 1000;
+        Console.WriteLine($"{DateTime.Now:HH:mm:ss} PowerWall: House = {_currentData.LoadPowerKw:0.000}kW, Solar = {_currentData.SolarPowerKw:0.000}kW, " +
+                          $"Grid = {_currentData.GridPowerKw:0.000}kW, Battery = {_currentData.BatteryPowerKw:0.000}kW");
     }
     
     /// <summary>
