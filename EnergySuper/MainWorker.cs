@@ -1,6 +1,9 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using AmberElectricityAPI;
 using AmberElectricityAPI.Models;
 using EnergySuper.EventArgsAndHandlers;
+using EnergySuper.Models;
 using PowerWallLocalApi;
 
 namespace EnergySuper;
@@ -92,11 +95,11 @@ public class MainWorker : BackgroundService
             Environment.Exit(-1);
         }
 
-        // Subscribe to a topic
-        string topic = "homeassistant/CurrentTime";
-        Exception? exr = await _mqttConnection.Subscribe(topic);
-        if (exr is not null)
-            await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{topic} - Error {exr.Message}");
+        // Subscribe to topics
+        Exception? exr = await _mqttConnection.Subscribe(_settings.MqttTimeFeedTopic);
+        if (exr != null) await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{_settings.MqttTimeFeedTopic} - Error {exr.Message}");
+        exr = await _mqttConnection.Subscribe(_settings.MqttPowerFeedTopic);
+        if (exr != null) await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{_settings.MqttPowerFeedTopic} - Error {exr.Message}");
 
         // Main application loop
         while (!stoppingToken.IsCancellationRequested)
@@ -126,16 +129,8 @@ public class MainWorker : BackgroundService
     /// <param name="args"></param>
     private async void MqttMessageReceivedHandler(object? sender, MqttMessageReceivedEventArgs args)
     {
-        //Console.Write($"Received message: {args.Topic}: {args.Payload}");
-        //Console.WriteLine("\t... press Control-C to exit the program.");
-        switch (args.Topic)
-        {
-            case "homeassistant/CurrentTime":
-                if (_mqttConnection == null) throw new ApplicationException("MQTT connection is null in MqttMessageReceivedHandler");
-                //var result = await _mqttConnection.SendMessageAsync("homeassistant/my_code_response",
-                //    $"Hello, MQTT! I got the time as " + args.Payload);
-                //if (result != null) Console.WriteLine($"Sending MQTT message failed. Reason: {result}");
-                
+        if (args.Topic == _settings.MqttTimeFeedTopic) {
+            if (_mqttConnection == null) throw new ApplicationException("MQTT connection is null in MqttMessageReceivedHandler");
                 // If we're due to update Amber data, do that....
                 if (DateTime.Now - _lastAmberPollTime > TimeSpan.FromSeconds(_settings.AmberApiReadFrequencyInSeconds))
                 {
@@ -151,10 +146,19 @@ public class MainWorker : BackgroundService
                     try { UpdatePowerWallLocal(_localPowerWall2); }
                     catch (Exception ex) { await LogMessage(LogLevel.Error, $"PowerWall2 Local API update failed: {ex.Message}"); }
                 }
-                break;
-            default: await LogMessage(LogLevel.Error, $"MQTT message received from unexpected topic [{args.Topic}]");
-                break;
-        }
+        } 
+        else if (args.Topic == _settings.MqttPowerFeedTopic)
+        {
+            MqttPowerMessage? powerMessage = null;
+            try { powerMessage = JsonSerializer.Deserialize<MqttPowerMessage>(args.Payload); }
+            catch (Exception ex) { await LogMessage(LogLevel.Error, $"Exception decoding MQTT power message: {ex.Message}"); }
+
+            if (powerMessage != null)
+            {
+                Console.WriteLine($"Got power message from Home Assistant. Battery Level = {powerMessage.BatteryLevel}%");
+            }
+        } 
+        else  await LogMessage(LogLevel.Error, $"MQTT message received from unexpected topic [{args.Topic}]");
     }
 
     /// <summary>
@@ -213,19 +217,6 @@ public class MainWorker : BackgroundService
             Console.WriteLine($"{DateTime.Now:HH:mm:ss} Amber Electricity API rate info:   {_amberElectricity.RateApiCallsRemainingThisWindow} " +
                               $"of {_amberElectricity.RateMaxCallsPerWindow} calls remaining in the next {_amberElectricity.RateSecsToWindowReset} seconds " +
                               $"of the {_amberElectricity.RateSecsPerWindow} second window.");
-        
-        /*
-        var usage = amberElectricity.GetSiteUsage(DateTime.Today.AddDays(-1), DateTime.Today);
-        if (usage.recs == null) 
-            throw new ApplicationException($"Unable to retrieve Amber Site Prices: Http response was {prices.httpStatusCode}");
-        
-        Console.WriteLine($"\n{DateTime.Now:HH:mm:ss} Amber Electricity usage: ");
-        foreach (var rec in usage.recs)
-        {
-            Console.WriteLine($"{rec.Date:dd/MM/yy} {rec.StartTime.ToLocalTime():HH:mm} - {rec.ChannelType} = {rec.Kwh} at {rec.PerKwh}c/kWh = {(rec.Cost/100):C}");
-        }
-        Console.WriteLine();
-        */
     }
 
     /// <summary>
@@ -234,6 +225,7 @@ public class MainWorker : BackgroundService
     /// <param name="powerWallLocal"></param>
     private void UpdatePowerWallLocal(PowerWall2Local powerWallLocal)
     {
+        // Login to PowerWall local API, get data & log out
         if (!_localPowerWall2.Login().Success)
             throw new ApplicationException($"Error attempting to login to PowerWall2 Local API.");
         var localPwMeters = powerWallLocal.AggregateMeters();
@@ -245,14 +237,31 @@ public class MainWorker : BackgroundService
         var result = _localPowerWall2.Logout();
         if (!result.success)
             throw new ApplicationException($"Error attempting to log out of PowerWall2 Local API. Http response was {result.httpStatusCode}");
-        _currentData.LastPowerUpdate = DateTime.Now;
-        _currentData.LoadPowerKw = localPwMeters.Load.InstantPower / 1000;
+        
+        // Calculate battery charge time if we have good previous data and we're actually charging
+        TimeSpan timeToCharge = new TimeSpan(0);
+        if (charge.Percentage < 99.99 && localPwMeters.Battery.InstantPower < 0 && DateTime.Now - _currentData.LastPowerUpdate < TimeSpan.FromMinutes(5))
+        {
+            double chargeChange = charge.Percentage - _currentData.BatteryChargePercent;
+            double secsChange = (DateTime.Now - _currentData.LastPowerUpdate).TotalSeconds;
+            double chargePercentPerSec = chargeChange / secsChange;
+            double chargeRemaining = 100 - charge.Percentage;
+            double secsToCharge = chargeRemaining / chargePercentPerSec;
+            timeToCharge = TimeSpan.FromSeconds(secsToCharge); 
+        }
+        
+        // Update values
         _currentData.BatteryPowerKw = localPwMeters.Battery.InstantPower / 1000;
+        _currentData.BatteryChargePercent = charge.Percentage;
         _currentData.GridPowerKw = localPwMeters.Site.InstantPower / 1000;
         _currentData.SolarPowerKw = localPwMeters.Solar.InstantPower / 1000;
+        _currentData.LoadPowerKw = localPwMeters.Load.InstantPower / 1000; 
+        _currentData.LastPowerUpdate = DateTime.Now;
         Console.WriteLine($"{DateTime.Now:HH:mm:ss} PowerWall: House = {_currentData.LoadPowerKw:0.000}kW, Solar = {_currentData.SolarPowerKw:0.000}kW, " +
                           $"Grid = {_currentData.GridPowerKw:0.000}kW, Battery = {_currentData.BatteryPowerKw:0.000}kW, " +
                           $"Charge = {charge.Percentage:0.000}%");
+        if (timeToCharge.TotalSeconds != 0 && localPwMeters.Battery.InstantPower < 0.250 && charge.Percentage < 99.99)
+            Console.WriteLine($"Battery should be charged in {timeToCharge.TotalSeconds} seconds by {(DateTime.Now + timeToCharge):HH:mm:ss}");
     }
     
     /// <summary>

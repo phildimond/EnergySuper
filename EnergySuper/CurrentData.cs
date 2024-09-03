@@ -9,6 +9,7 @@ public class CurrentData
     public double LoadPowerKw { get; set; } = 0.0;
     public double SolarPowerKw { get; set; } = 0.0;
     public double BatteryPowerKw { get; set; } = 0.0;
+    public double BatteryChargePercent { get; set; } = 0.0;
     public double GridPowerKw { get; set; } = 0.0;
     public DateTime LastPriceUpdate { get; set; } = DateTime.MinValue;
     public double CurrentPowerPriceBuy { get; set; } = 0.0;

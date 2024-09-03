@@ -41,6 +41,7 @@ public class MqttConnection
             .WithCredentials(mqttUsername, mqttPassword) // Set username and password
             .WithClientId(clientIdentifier)
             .WithCleanSession()
+            .WithKeepAlivePeriod(TimeSpan.FromSeconds(30))
             .Build();
     }
 
