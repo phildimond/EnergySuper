@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AmberElectricityAPI;
 using AmberElectricityAPI.Models;
 using EnergySuper.EventArgsAndHandlers;
@@ -13,10 +12,9 @@ public class MainWorker : BackgroundService
     private readonly ILogger<MainWorker>? _logger;
     private readonly Settings _settings = new Settings();
     private MqttConnection? _mqttConnection;
-    private AmberElectricity _amberElectricity;
-    private AmberData _amberData = new AmberData();
+    private AmberElectricity? _amberElectricity;
     private DateTime _lastAmberPollTime = DateTime.MinValue;
-    private PowerWall2Local _localPowerWall2;
+    private PowerWall2Local? _localPowerWall2;
     private DateTime _lastPowerWall2LocalPollTime = DateTime.MinValue;
     private CurrentData _currentData = new CurrentData();
     
@@ -95,6 +93,9 @@ public class MainWorker : BackgroundService
             Environment.Exit(-1);
         }
 
+        // Send configuration messages
+        await MqttSendConfigurationMessages();
+
         // Subscribe to topics
         Exception? exr = await _mqttConnection.Subscribe(_settings.MqttTimeFeedTopic);
         if (exr != null) await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{_settings.MqttTimeFeedTopic} - Error {exr.Message}");
@@ -135,16 +136,20 @@ public class MainWorker : BackgroundService
                 if (DateTime.Now - _lastAmberPollTime > TimeSpan.FromSeconds(_settings.AmberApiReadFrequencyInSeconds))
                 {
                     _lastAmberPollTime = DateTime.Now;
-                    try { UpdateAmberInfo(_amberElectricity); }
-                    catch (Exception ex) { await LogMessage(LogLevel.Error, $"Amber update failed: {ex.Message}"); }
+                    if (_amberElectricity != null) {
+                        try { await UpdateAmberInfo(_amberElectricity); }
+                        catch (Exception ex) { await LogMessage(LogLevel.Error, $"Amber update failed: {ex.Message}"); }
+                    }
                 }
                 
                 // If we're due to update PowerWall local data, do that....
                 if (DateTime.Now - _lastPowerWall2LocalPollTime > TimeSpan.FromSeconds(_settings.Pw2LocalApiReadFrequencyInSeconds))
                 {
                     _lastPowerWall2LocalPollTime = DateTime.Now;
-                    try { UpdatePowerWallLocal(_localPowerWall2); }
-                    catch (Exception ex) { await LogMessage(LogLevel.Error, $"PowerWall2 Local API update failed: {ex.Message}"); }
+                    if (_localPowerWall2 != null) {
+                        try { await UpdatePowerWallLocal(_localPowerWall2); }
+                        catch (Exception ex) { await LogMessage(LogLevel.Error, $"PowerWall2 Local API update failed: {ex.Message}"); }
+                    }
                 }
         } 
         else if (args.Topic == _settings.MqttPowerFeedTopic)
@@ -162,13 +167,49 @@ public class MainWorker : BackgroundService
     }
 
     /// <summary>
+    /// Send MQTT messages for Home Assistant device configurations
+    /// </summary>
+    /// <returns></returns>
+    private async Task<bool> MqttSendConfigurationMessages()
+    {
+        if (_mqttConnection == null) return false;
+        string deviceName = _settings.MqttDeviceName;
+        string deviceUniqueId = deviceName.Replace(" ","") + "-id";
+        string entityName = "Battery Charge";
+        string entityUniqueId = deviceName.Replace(" ","") + entityName.Replace(" ","") + "-id";
+        string availabilityTopic = "homeassistant/number/" + deviceName.Replace(" ","") + "/availability";
+        string availableMessage = "online";
+        string unavailableMessage = "offline";
+        string configTopic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config"; 
+        string stateTopic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/state";
+
+        MqttDeviceConfigMessage configMessage = new MqttDeviceConfigMessage(
+            entityName, entityUniqueId, 
+            new string[] { deviceUniqueId }, deviceName, 
+            availabilityTopic, availableMessage, unavailableMessage,
+            "battery", stateTopic, stateTopic, "box",
+            "%", 0.00, 100.00, 0.01);
+        string topic = configTopic;
+        string payload = JsonSerializer.Serialize(configMessage);
+        string? result = await _mqttConnection.SendMessageAsync(topic, payload);
+        if (result == null) return true; 
+        await LogMessage(LogLevel.Error, "Sending configuration messages to home Assistant failed: " + result);
+        return false;
+    }
+    
+    /// <summary>
     /// Call the Amber API to update our information about Amber pricing
     /// </summary>
     /// <param name="amberElectricity"></param>
     /// <exception cref="ApplicationException"></exception>
-    private async void UpdateAmberInfo(AmberElectricity amberElectricity)
+    private async Task<bool> UpdateAmberInfo(AmberElectricity amberElectricity)
     {
-        var prices = await amberElectricity.GetCurrentPricesAsync(1,0,30);
+        if (_amberElectricity == null)
+        {
+            await LogMessage(LogLevel.Error, "Amber Electricity variable is null");
+            return false;
+        }
+        var prices = await amberElectricity.GetCurrentPricesAsync(1,0);
         if (prices.records == null) 
             throw new ApplicationException($"Unable to retrieve Amber Site Prices: Http response was {prices.httpStatusCode}");
 
@@ -199,10 +240,8 @@ public class MainWorker : BackgroundService
                     await LogMessage(LogLevel.Error,
                         $"Received a price for the 'Unknown' Channel Type from Amber.");
                     break;
-                    break;
                 default:
                     await LogMessage(LogLevel.Error, $"Unrecognised Channel Type from Amber: {rec.ChannelType}");
-                    break;
                     break;
             }
         }
@@ -217,14 +256,21 @@ public class MainWorker : BackgroundService
             Console.WriteLine($"{DateTime.Now:HH:mm:ss} Amber Electricity API rate info:   {_amberElectricity.RateApiCallsRemainingThisWindow} " +
                               $"of {_amberElectricity.RateMaxCallsPerWindow} calls remaining in the next {_amberElectricity.RateSecsToWindowReset} seconds " +
                               $"of the {_amberElectricity.RateSecsPerWindow} second window.");
+        return true;
     }
 
     /// <summary>
     /// Update data from the PowerWall battery local API
     /// </summary>
     /// <param name="powerWallLocal"></param>
-    private void UpdatePowerWallLocal(PowerWall2Local powerWallLocal)
+    private async Task<bool> UpdatePowerWallLocal(PowerWall2Local powerWallLocal)
     {
+        if (_localPowerWall2 == null)
+        {
+            await LogMessage(LogLevel.Error, "Local PowerWall2 variable is null.");
+            return false;
+        }
+        
         // Login to PowerWall local API, get data & log out
         if (!_localPowerWall2.Login().Success)
             throw new ApplicationException($"Error attempting to login to PowerWall2 Local API.");
@@ -262,6 +308,21 @@ public class MainWorker : BackgroundService
                           $"Charge = {charge.Percentage:0.000}%");
         if (timeToCharge.TotalSeconds != 0 && localPwMeters.Battery.InstantPower < 0.250 && charge.Percentage < 99.99)
             Console.WriteLine($"Battery should be charged in {timeToCharge.TotalSeconds} seconds by {(DateTime.Now + timeToCharge):HH:mm:ss}");
+        
+        // Send MQTT messages
+        if (_mqttConnection != null)
+        {
+            string deviceName = _settings.MqttDeviceName;
+            string thisEntityName = "Battery Charge";
+            string stateTopic = $"homeassistant/number/{deviceName.Replace(" ", "")}/{thisEntityName.Replace(" ", "")}/state";
+            string availabilityTopic = "homeassistant/number/" + deviceName.Replace(" ", "") + "/availability";
+            string availableMessage = "online";
+
+            await _mqttConnection.SendMessageAsync(availabilityTopic, availableMessage);
+            await _mqttConnection.SendMessageAsync(stateTopic, charge.Percentage.ToString("0.00"));
+        }
+
+        return true;
     }
     
     /// <summary>

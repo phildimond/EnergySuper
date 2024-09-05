@@ -8,6 +8,7 @@ public class Settings
     public string MqttPassword { get; set; } = string.Empty;
     public string MqttTimeFeedTopic { get; set; } = string.Empty;
     public string MqttPowerFeedTopic { get; set; } = string.Empty;
+    public string MqttDeviceName { get; set; } = string.Empty;
     public string AmberUrl { get; set; } = string.Empty;
     public string AmberToken { get; set; } = string.Empty;
     public string AmberSiteId { get; set; } = string.Empty;
@@ -44,6 +45,9 @@ public class Settings
             cs = config.GetValue<string>("Settings:MqttPowerFeedTopic");
             if (!string.IsNullOrWhiteSpace(cs)) MqttPowerFeedTopic = cs;
 
+            cs = config.GetValue<string>("Settings:MqttDeviceName");
+            if (!string.IsNullOrWhiteSpace(cs)) MqttDeviceName = cs;
+            
             cs = config.GetValue<string>("Settings:AmberUrl");
             if (!string.IsNullOrWhiteSpace(cs)) AmberUrl = cs;
 
