@@ -1,4 +1,4 @@
-namespace EnergySuper;
+namespace EnergySuper.Models;
 
 /// <summary>
 /// Encapsulates the current live data used by the app

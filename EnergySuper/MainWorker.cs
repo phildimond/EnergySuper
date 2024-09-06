@@ -13,6 +13,7 @@ public class MainWorker : BackgroundService
     private readonly Settings _settings = new Settings();
     private MqttConnection? _mqttConnection;
     private AmberElectricity? _amberElectricity;
+    private HomeAssistantMqtt? _homeAssistantMqtt;
     private DateTime _lastAmberPollTime = DateTime.MinValue;
     private PowerWall2Local? _localPowerWall2;
     private DateTime _lastPowerWall2LocalPollTime = DateTime.MinValue;
@@ -80,7 +81,6 @@ public class MainWorker : BackgroundService
 
         // Connect to the MQTT Broker. Log and exit on failure.
         _mqttConnection = new MqttConnection(_settings.MqttBroker, _settings.MqttPort, _settings.MqttUsername, _settings.MqttPassword);
-        _mqttConnection.MqttMessageReceived += MqttMessageReceivedHandler;
         try
         {
             var result = await _mqttConnection.Connect();
@@ -93,8 +93,13 @@ public class MainWorker : BackgroundService
             Environment.Exit(-1);
         }
 
-        // Send configuration messages
-        await MqttSendConfigurationMessages();
+        // Instantiate and initialise the Home Assistant connection
+        _homeAssistantMqtt = new HomeAssistantMqtt(_settings, _mqttConnection);
+        _homeAssistantMqtt.LogMessageAvailableEvent += async (sender, args) =>
+        {
+            await LogMessage(args.Level, args.Message);
+        };
+        if (await _homeAssistantMqtt.Start() == false) throw new ApplicationException("Unable to start HomeAssistant.");
 
         // Subscribe to topics
         Exception? exr = await _mqttConnection.Subscribe(_settings.MqttTimeFeedTopic);
@@ -105,7 +110,7 @@ public class MainWorker : BackgroundService
         // Main application loop
         while (!stoppingToken.IsCancellationRequested)
         {
-            //await LogMessage(LogLevel.Information,"The EnergySuper Main Worker was still running at: {time}", DateTimeOffset.Now);
+            await UpdateData();
             Thread.Sleep(1000);
         }
 
@@ -124,79 +129,50 @@ public class MainWorker : BackgroundService
     }
 
     /// <summary>
-    /// Process received MQTT messages 
+    /// Update data from systems
     /// </summary>
     /// <param name="sender"></param>
     /// <param name="args"></param>
-    private async void MqttMessageReceivedHandler(object? sender, MqttMessageReceivedEventArgs args)
+    private async Task<bool> UpdateData()
     {
-        if (args.Topic == _settings.MqttTimeFeedTopic) {
-            if (_mqttConnection == null) throw new ApplicationException("MQTT connection is null in MqttMessageReceivedHandler");
-                // If we're due to update Amber data, do that....
-                if (DateTime.Now - _lastAmberPollTime > TimeSpan.FromSeconds(_settings.AmberApiReadFrequencyInSeconds))
-                {
-                    _lastAmberPollTime = DateTime.Now;
-                    if (_amberElectricity != null) {
-                        try { await UpdateAmberInfo(_amberElectricity); }
-                        catch (Exception ex) { await LogMessage(LogLevel.Error, $"Amber update failed: {ex.Message}"); }
-                    }
-                }
-                
-                // If we're due to update PowerWall local data, do that....
-                if (DateTime.Now - _lastPowerWall2LocalPollTime > TimeSpan.FromSeconds(_settings.Pw2LocalApiReadFrequencyInSeconds))
-                {
-                    _lastPowerWall2LocalPollTime = DateTime.Now;
-                    if (_localPowerWall2 != null) {
-                        try { await UpdatePowerWallLocal(_localPowerWall2); }
-                        catch (Exception ex) { await LogMessage(LogLevel.Error, $"PowerWall2 Local API update failed: {ex.Message}"); }
-                    }
-                }
-        } 
-        else if (args.Topic == _settings.MqttPowerFeedTopic)
+        // If we're due to update Amber data, do that....
+        if (DateTime.Now - _lastAmberPollTime > TimeSpan.FromSeconds(_settings.AmberApiReadFrequencyInSeconds))
         {
-            MqttPowerMessage? powerMessage = null;
-            try { powerMessage = JsonSerializer.Deserialize<MqttPowerMessage>(args.Payload); }
-            catch (Exception ex) { await LogMessage(LogLevel.Error, $"Exception decoding MQTT power message: {ex.Message}"); }
-
-            if (powerMessage != null)
+            _lastAmberPollTime = DateTime.Now;
+            if (_amberElectricity != null)
             {
-                Console.WriteLine($"Got power message from Home Assistant. Battery Level = {powerMessage.BatteryLevel}%");
+                try
+                {
+                    await UpdateAmberInfo(_amberElectricity);
+                }
+                catch (Exception ex)
+                {
+                    await LogMessage(LogLevel.Error, $"Amber update failed: {ex.Message}");
+                }
             }
-        } 
-        else  await LogMessage(LogLevel.Error, $"MQTT message received from unexpected topic [{args.Topic}]");
+        }
+
+        // If we're due to update PowerWall local data, do that....
+        if (DateTime.Now - _lastPowerWall2LocalPollTime >
+            TimeSpan.FromSeconds(_settings.Pw2LocalApiReadFrequencyInSeconds))
+        {
+            _lastPowerWall2LocalPollTime = DateTime.Now;
+            if (_localPowerWall2 != null)
+            {
+                try
+                {
+                    await UpdatePowerWallLocal(_localPowerWall2);
+                }
+                catch (Exception ex)
+                {
+                    await LogMessage(LogLevel.Error, $"PowerWall2 Local API update failed: {ex.Message}");
+                }
+            }
+        }
+
+        return true;
     }
 
-    /// <summary>
-    /// Send MQTT messages for Home Assistant device configurations
-    /// </summary>
-    /// <returns></returns>
-    private async Task<bool> MqttSendConfigurationMessages()
-    {
-        if (_mqttConnection == null) return false;
-        string deviceName = _settings.MqttDeviceName;
-        string deviceUniqueId = deviceName.Replace(" ","") + "-id";
-        string entityName = "Battery Charge";
-        string entityUniqueId = deviceName.Replace(" ","") + entityName.Replace(" ","") + "-id";
-        string availabilityTopic = "homeassistant/number/" + deviceName.Replace(" ","") + "/availability";
-        string availableMessage = "online";
-        string unavailableMessage = "offline";
-        string configTopic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config"; 
-        string stateTopic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/state";
-
-        MqttDeviceConfigMessage configMessage = new MqttDeviceConfigMessage(
-            entityName, entityUniqueId, 
-            new string[] { deviceUniqueId }, deviceName, 
-            availabilityTopic, availableMessage, unavailableMessage,
-            "battery", stateTopic, stateTopic, "box",
-            "%", 0.00, 100.00, 0.01);
-        string topic = configTopic;
-        string payload = JsonSerializer.Serialize(configMessage);
-        string? result = await _mqttConnection.SendMessageAsync(topic, payload);
-        if (result == null) return true; 
-        await LogMessage(LogLevel.Error, "Sending configuration messages to home Assistant failed: " + result);
-        return false;
-    }
-    
     /// <summary>
     /// Call the Amber API to update our information about Amber pricing
     /// </summary>

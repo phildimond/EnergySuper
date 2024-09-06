@@ -80,10 +80,10 @@ public class MqttPowerMessage
     public double BatteryLevel { get; set; }
     
     [JsonPropertyName("currentPrices")]
-    public PriceRecord[]? CurrentPrices { get; set; }
+    public MqttPriceRecord[]? CurrentPrices { get; set; }
     
     [JsonPropertyName("forecastPrices")]
-    public PriceRecord[]? ForecastPrices { get; set; }
+    public MqttPriceRecord[]? ForecastPrices { get; set; }
 
     [JsonPropertyName("powerValues")]
     public PowerRecord[]? PowerRecords { get; set; }

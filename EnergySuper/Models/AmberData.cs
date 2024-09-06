@@ -1,6 +1,6 @@
 using AmberElectricityAPI.Models;
 
-namespace EnergySuper;
+namespace EnergySuper.Models;
 
 /// <summary>
 /// Encapsulates information we've obtained about Amber Electricity

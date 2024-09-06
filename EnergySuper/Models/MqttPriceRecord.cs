@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace EnergySuper.Models;
 
-public class PriceRecord
+public class MqttPriceRecord
 {
     /*
         "name": "importPrice",
