@@ -18,7 +18,8 @@ public class MainWorker : BackgroundService
     private PowerWall2Local? _localPowerWall2;
     private DateTime _lastPowerWall2LocalPollTime = DateTime.MinValue;
     private CurrentData _currentData = new CurrentData();
-    
+    private DateTime _lastHomeAssistantDataUpdateTime = DateTime.MinValue;
+
     /// <summary>
     /// Constructor
     /// </summary>
@@ -52,6 +53,12 @@ public class MainWorker : BackgroundService
         try
         {
             _amberElectricity = new AmberElectricity(_settings.AmberToken, _settings.AmberSiteId);
+            _amberElectricity.LowApiRemainingAlertThreshold = 10;
+            _amberElectricity.LowAmberApiCallsRemainingEvent += (sender, args) =>
+            {
+                LogMessage(LogLevel.Warning,
+                    $"Low Amber API calls remaining: {args.ApiCallsRemaining} calls remaining in the next {args.WindowSecsRemaining} seconds.");
+            };
             var prices = await _amberElectricity.GetCurrentPricesAsync(0, 0);
             if (prices.records == null) throw new ApplicationException($"Unable to retrieve API data: Http response was {prices.httpStatusCode}");
         }
@@ -170,6 +177,24 @@ public class MainWorker : BackgroundService
             }
         }
 
+        // If we're due to update home assistant, do it
+        if (DateTime.Now - _lastHomeAssistantDataUpdateTime >
+            TimeSpan.FromSeconds(_settings.HomeAssistantUpdateFrequencyInSeconds))
+        {
+            _lastHomeAssistantDataUpdateTime = DateTime.Now;
+            if (_homeAssistantMqtt != null)
+            {
+                try
+                {
+                    await _homeAssistantMqtt.SendUpdatedValues(_currentData);
+                }
+                catch (Exception ex)
+                {
+                    await LogMessage(LogLevel.Error, $"PowerWall2 Local API update failed: {ex.Message}");
+                }
+            }
+        }
+
         return true;
     }
 
@@ -226,12 +251,6 @@ public class MainWorker : BackgroundService
                           $"Sell = {_currentData.CurrentPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.CurrentPowerPriceControlledLoad:0.000}c/kWh");
         Console.WriteLine($"{DateTime.Now:HH:mm:ss} Amber Electricity forecast prices: Buy = {_currentData.ForecastPowerPriceBuy:0.000}c/kWh, " +
                           $"Sell = {_currentData.ForecastPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.ForecastPowerPriceControlledLoad:0.000}c/kWh");
-        if (_amberElectricity.RateApiCallsRemainingThisWindow != null && _amberElectricity.RateSecsToWindowReset != null 
-                                                                      && _amberElectricity.RateMaxCallsPerWindow != null
-                                                                      && _amberElectricity.RateSecsPerWindow != null)
-            Console.WriteLine($"{DateTime.Now:HH:mm:ss} Amber Electricity API rate info:   {_amberElectricity.RateApiCallsRemainingThisWindow} " +
-                              $"of {_amberElectricity.RateMaxCallsPerWindow} calls remaining in the next {_amberElectricity.RateSecsToWindowReset} seconds " +
-                              $"of the {_amberElectricity.RateSecsPerWindow} second window.");
         return true;
     }
 
@@ -285,19 +304,6 @@ public class MainWorker : BackgroundService
         if (timeToCharge.TotalSeconds != 0 && localPwMeters.Battery.InstantPower < 0.250 && charge.Percentage < 99.99)
             Console.WriteLine($"Battery should be charged in {timeToCharge.TotalSeconds} seconds by {(DateTime.Now + timeToCharge):HH:mm:ss}");
         
-        // Send MQTT messages
-        if (_mqttConnection != null)
-        {
-            string deviceName = _settings.MqttDeviceName;
-            string thisEntityName = "Battery Charge";
-            string stateTopic = $"homeassistant/number/{deviceName.Replace(" ", "")}/{thisEntityName.Replace(" ", "")}/state";
-            string availabilityTopic = "homeassistant/number/" + deviceName.Replace(" ", "") + "/availability";
-            string availableMessage = "online";
-
-            await _mqttConnection.SendMessageAsync(availabilityTopic, availableMessage);
-            await _mqttConnection.SendMessageAsync(stateTopic, charge.Percentage.ToString("0.00"));
-        }
-
         return true;
     }
     

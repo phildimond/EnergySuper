@@ -46,16 +46,16 @@ public class MqttDeviceAvailabilityConfigMessage(string topic, string availableM
         
 }
 public class MqttDeviceConfigMessage(
-    string name, string uniqueId, string[] identifiers, string deviceName,
+    string entityName, string entityUniqueId, string[] identifiers, string deviceName,
     string availabilityTopic, string availableMessage, string unavailableMessage,
     string deviceClass, string stateTopic, string commandTopic = "", string mode = "auto",
     string? unitOfMeasurement = null, double min = 0, double max = 100, double step = 1, bool retain = false)
 {
     [JsonPropertyName("name")]
-    public string Name { get; set; } = name;
+    public string EntityName { get; set; } = entityName;
     
     [JsonPropertyName("unique_id")]
-    public string UniqueId { get; set; } = uniqueId;
+    public string EntityUniqueId { get; set; } = entityUniqueId;
     
     [JsonPropertyName("device")]
     public MqttDeviceConfigMessageDevice Device { get; set; } = new(identifiers, deviceName);

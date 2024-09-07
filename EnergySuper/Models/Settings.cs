@@ -1,4 +1,4 @@
-namespace EnergySuper;
+namespace EnergySuper.Models;
 
 public class Settings
 {
@@ -17,6 +17,8 @@ public class Settings
     public string PowerWallLocalPassword { get; set; } = string.Empty;
     public int AmberApiReadFrequencyInSeconds { get; set; } = 60;
     public int Pw2LocalApiReadFrequencyInSeconds { get; set; } = 60;
+    public bool UseHomeAssistant { get; set; } = true;
+    public int HomeAssistantUpdateFrequencyInSeconds { get; set; } = 10;
 
     public string? Load()
     {

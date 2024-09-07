@@ -9,6 +9,9 @@ public class HomeAssistantMqtt (Settings? settings, MqttConnection? mqttConnecti
     private Settings? _settings = settings;
     private MqttConnection? _mqttConnection = mqttConnection;
     
+    /// <summary>
+    /// Raised when this object wishes to log a message
+    /// </summary>
     public event LogAvailableEventHandler? LogMessageAvailableEvent;
 
     /// <summary>
@@ -78,25 +81,65 @@ public class HomeAssistantMqtt (Settings? settings, MqttConnection? mqttConnecti
         string availabilityTopic = "homeassistant/number/" + deviceName.Replace(" ","") + "/availability";
         string availableMessage = "online";
         string unavailableMessage = "offline";
-        string configTopic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config"; 
         string stateTopic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/state";
 
+        // Battery Charge number
         MqttDeviceConfigMessage configMessage = new MqttDeviceConfigMessage(
             entityName, entityUniqueId, 
             new string[] { deviceUniqueId }, deviceName, 
             availabilityTopic, availableMessage, unavailableMessage,
             "battery", stateTopic, stateTopic, "box",
             "%", 0.00, 100.00, 0.01);
-        string topic = configTopic;
+        string topic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config";
         string payload = JsonSerializer.Serialize(configMessage);
         string? result = await _mqttConnection.SendMessageAsync(topic, payload);
+        if (result != null) LogMessage(LogLevel.Error, "Sending configuration messages to home Assistant failed: " + result);
         
-        if (result == null) return true;
-        
-        LogMessage(LogLevel.Error, "Sending configuration messages to home Assistant failed: " + result);
-        return false;
+        // Grid Power Number
+        entityName = "Grid Power";
+        configMessage.EntityName = entityName;
+        configMessage.EntityUniqueId = deviceName.Replace(" ","") + entityName.Replace(" ","") + "-id";
+        configMessage.StateTopic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/state";
+        configMessage.UnitOfMeasurement = "kW";
+        configMessage.Min = 0;
+        configMessage.Max = 1000;
+        configMessage.Step = 0.001;
+        topic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config";
+        payload = JsonSerializer.Serialize(configMessage);
+        result = await _mqttConnection.SendMessageAsync(topic, payload);
+        if (result != null) LogMessage(LogLevel.Error, "Sending configuration messages to home Assistant failed: " + result);
+
+        // All done, return OK.
+        return true;
     }
 
+    /// <summary>
+    /// Send the current data to Home Assistant
+    /// </summary>
+    /// <param name="currentData"></param>
+    /// <returns></returns>
+    /// <exception cref="ApplicationException"></exception>
+    public async Task<bool> SendUpdatedValues(CurrentData currentData)
+    {
+        if (_settings == null) throw new ApplicationException("HomeAssistantMqtt.MqttSendConfigurationMessages, _settings is null"); 
+        if (_mqttConnection != null)
+        {
+            string entityName = _settings.MqttDeviceName;
+            string availabilityTopic = "homeassistant/number/" + entityName.Replace(" ", "") + "/availability";
+            string availableMessage = "online";
+            await _mqttConnection.SendMessageAsync(availabilityTopic, availableMessage);
+
+            string thisEntityName = "Battery Charge";
+            string stateTopic = $"homeassistant/number/{entityName.Replace(" ", "")}/{thisEntityName.Replace(" ", "")}/state";
+            await _mqttConnection.SendMessageAsync(stateTopic, currentData.BatteryChargePercent.ToString("0.00"));
+
+            thisEntityName = "Grid Power";
+            stateTopic = $"homeassistant/number/{entityName.Replace(" ", "")}/{thisEntityName.Replace(" ", "")}/state";
+            await _mqttConnection.SendMessageAsync(stateTopic, currentData.GridPowerKw.ToString("0.000"));
+
+            return true;
+        } else throw new ApplicationException("HomeAssistantMqtt.MqttSendConfigurationMessages, _mqttConnection is null");
+    }
     
     /// <summary>
     /// Send an event indicating a log message is available
