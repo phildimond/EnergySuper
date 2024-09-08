@@ -10,10 +10,10 @@ public class MqttPriceRecord
         "value": 0.07
      */
     [JsonPropertyName("name")]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
     
     [JsonPropertyName("units")]
-    public string Units { get; set; }
+    public string Units { get; set; } = string.Empty;
     
     [JsonPropertyName("value")]
     public decimal Value { get; set; }
