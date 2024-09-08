@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AmberElectricityAPI;
 using AmberElectricityAPI.Models;
 using EnergySuper.EventArgsAndHandlers;
@@ -54,11 +53,7 @@ public class MainWorker : BackgroundService
         {
             _amberElectricity = new AmberElectricity(_settings.AmberToken, _settings.AmberSiteId);
             _amberElectricity.LowApiRemainingAlertThreshold = 10;
-            _amberElectricity.LowAmberApiCallsRemainingEvent += (sender, args) =>
-            {
-                LogMessage(LogLevel.Warning,
-                    $"Low Amber API calls remaining: {args.ApiCallsRemaining} calls remaining in the next {args.WindowSecsRemaining} seconds.");
-            };
+            _amberElectricity.LowAmberApiCallsRemainingEvent += OnAmberElectricityLowAmberApiCallsRemainingEvent;
             var prices = await _amberElectricity.GetCurrentPricesAsync(0, 0);
             if (prices.records == null) throw new ApplicationException($"Unable to retrieve API data: Http response was {prices.httpStatusCode}");
         }
@@ -136,10 +131,18 @@ public class MainWorker : BackgroundService
     }
 
     /// <summary>
-    /// Update data from systems
+    /// Low Amber API calls remaining event was triggered
     /// </summary>
     /// <param name="sender"></param>
     /// <param name="args"></param>
+    private async void OnAmberElectricityLowAmberApiCallsRemainingEvent(object? sender, LowAmberApiCallsRemainingEventArgs args)
+    {
+        await LogMessage(LogLevel.Warning, $"Low Amber API calls remaining: {args.ApiCallsRemaining} calls remaining in the next {args.WindowSecsRemaining} seconds.");
+    }
+
+    /// <summary>
+    /// Update data from systems
+    /// </summary>
     private async Task<bool> UpdateData()
     {
         // If we're due to update Amber data, do that....
@@ -280,15 +283,18 @@ public class MainWorker : BackgroundService
             throw new ApplicationException($"Error attempting to log out of PowerWall2 Local API. Http response was {result.httpStatusCode}");
         
         // Calculate battery charge time if we have good previous data and we're actually charging
-        TimeSpan timeToCharge = new TimeSpan(0);
+        TimeSpan timeToCharge = TimeSpan.Zero;
         if (charge.Percentage < 99.99 && localPwMeters.Battery.InstantPower < 0 && DateTime.Now - _currentData.LastPowerUpdate < TimeSpan.FromMinutes(5))
         {
             double chargeChange = charge.Percentage - _currentData.BatteryChargePercent;
-            double secsChange = (DateTime.Now - _currentData.LastPowerUpdate).TotalSeconds;
-            double chargePercentPerSec = chargeChange / secsChange;
-            double chargeRemaining = 100 - charge.Percentage;
-            double secsToCharge = chargeRemaining / chargePercentPerSec;
-            timeToCharge = TimeSpan.FromSeconds(secsToCharge); 
+            if (chargeChange > 0)
+            {
+                double secsChange = (DateTime.Now - _currentData.LastPowerUpdate).TotalSeconds;
+                double chargePercentPerSec = chargeChange / secsChange;
+                double chargeRemaining = 100 - charge.Percentage;
+                double secsToCharge = chargeRemaining / chargePercentPerSec;
+                if (secsToCharge < (60 * 60 * 12)) timeToCharge = TimeSpan.FromSeconds(secsToCharge);
+            }
         }
         
         // Update values
@@ -301,7 +307,7 @@ public class MainWorker : BackgroundService
         Console.WriteLine($"{DateTime.Now:HH:mm:ss} PowerWall: House = {_currentData.LoadPowerKw:0.000}kW, Solar = {_currentData.SolarPowerKw:0.000}kW, " +
                           $"Grid = {_currentData.GridPowerKw:0.000}kW, Battery = {_currentData.BatteryPowerKw:0.000}kW, " +
                           $"Charge = {charge.Percentage:0.000}%");
-        if (timeToCharge.TotalSeconds != 0 && localPwMeters.Battery.InstantPower < 0.250 && charge.Percentage < 99.99)
+        if (timeToCharge != TimeSpan.Zero && localPwMeters.Battery.InstantPower < 0.250 && charge.Percentage < 99.99)
             Console.WriteLine($"Battery should be charged in {timeToCharge.TotalSeconds} seconds by {(DateTime.Now + timeToCharge):HH:mm:ss}");
         
         return true;
