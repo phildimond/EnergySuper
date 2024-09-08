@@ -17,10 +17,10 @@
 
     <ItemGroup>
       <Reference Include="AmberElectricityAPI">
-        <HintPath>AmberElectricityAPI.dll</HintPath>
+        <HintPath>DLLs\AmberElectricityAPI.dll</HintPath>
       </Reference>
       <Reference Include="PowerWallLocalApi">
-        <HintPath>PowerWallLocalApi.dll</HintPath>
+        <HintPath>DLLs\PowerWallLocalApi.dll</HintPath>
       </Reference>
     </ItemGroup>
 </Project>

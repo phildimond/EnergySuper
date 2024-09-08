@@ -54,5 +54,5 @@
 /home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/AmberElectricityAPI.pdb
 /home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/PowerWallLocalApi.dll
 /home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/PowerWallLocalApi.pdb
-/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/AmberElectricityAPI.deps.json
-/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/PowerWallLocalApi.deps.json
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/DLLs/AmberElectricityAPI.deps.json
+/home/phillip/source/c#/EnergySuper/EnergySuper/bin/Debug/net8.0/DLLs/PowerWallLocalApi.deps.json
