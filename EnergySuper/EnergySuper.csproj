@@ -17,10 +17,10 @@
 
     <ItemGroup>
       <Reference Include="AmberElectricityAPI">
-        <HintPath>..\..\AmberElectricityAPI\bin\Release\net8.0\publish\AmberElectricityAPI.dll</HintPath>
+        <HintPath>AmberElectricityAPI.dll</HintPath>
       </Reference>
       <Reference Include="PowerWallLocalApi">
-        <HintPath>..\..\TeslaApi\PowerWallLocalApi\bin\Release\net8.0\publish\PowerWallLocalApi.dll</HintPath>
+        <HintPath>PowerWallLocalApi.dll</HintPath>
       </Reference>
     </ItemGroup>
 </Project>
