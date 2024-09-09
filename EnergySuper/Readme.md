@@ -1,14 +1,16 @@
-To use...
+To use on Raspberry Pi (even a Pi 2 works fine)
 
-1. Edit EnergySuper.service to point to the executable if necessary
-2. dotnet publish
-2. sudo cp EnergySuper.service /lib/systemd/system
-3. sudo systemctl daemon-reload
-3. sudo systemctl start EnergySuper
-4. sudo systemctl status EnergySuper
-5. sudo systemctl stop EnergySuper
+Install .Net per https://learn.microsoft.com/en-us/dotnet/iot/deployment
 
-For production copy the publish directory contents to a suitable 
-location, eg /usr/sbin, modify the .service file to point to that, and run from there.
+1. git clone https://github.com/phildimond/EnergySuper
+2. dotnet publish --self-contained
+3. copy built files to a suitable location, eg /lib/systemd/system
+      sudo mkdir /lib/systemd/system/EnergySuper
+4.  Edit EnergySuper.service to point to the executable
+5. Put EnergySuper.service in the right directory
+       sudo cp EnergySuper.service /lib/systemd/system
+6. sudo systemctl daemon-reload
+7. sudo systemctl start EnergySuper
+8. sudo systemctl status EnergySuper
+9. sudo systemctl stop EnergySuper
 
-sudo cp /home/phillip/source/c#/EnergySuper/EnergySuper/bin/Release/net8.0/linux-x64/publish/* /usr/sbin/EnergySuper/
