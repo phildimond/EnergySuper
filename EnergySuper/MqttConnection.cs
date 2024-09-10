@@ -117,15 +117,17 @@ public class MqttConnection
     /// </summary>
     /// <param name="topic"></param>
     /// <param name="payload"></param>
+    /// <param name="retain"></param>
     /// <param name="mqttQualityOfServiceLevel">QoS level, defaults to At Least Once</param>
     /// <returns>null on success, reason message on failure</returns>
-    public async Task<string?> SendMessageAsync(string topic, string payload,
+    public async Task<string?> SendMessageAsync(string topic, string payload, bool retain = false,
         MqttQualityOfServiceLevel mqttQualityOfServiceLevel = MqttQualityOfServiceLevel.AtLeastOnce)
     {
         var message = new MqttApplicationMessageBuilder()
             .WithTopic(topic)
             .WithPayload(payload)
             .WithQualityOfServiceLevel(mqttQualityOfServiceLevel)
+            .WithRetainFlag(retain)
             .Build();
         
         var result = await _mqttClient.PublishAsync(message);

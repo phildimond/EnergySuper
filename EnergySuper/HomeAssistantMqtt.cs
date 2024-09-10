@@ -98,7 +98,7 @@ public class HomeAssistantMqtt (Settings? settings, MqttConnection? mqttConnecti
             "%", 0.00, 100.00, 0.01);
         string topic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config";
         string payload = JsonSerializer.Serialize(configMessage);
-        string? result = await _mqttConnection.SendMessageAsync(topic, payload);
+        string? result = await _mqttConnection.SendMessageAsync(topic, payload, true);
         if (result != null) LogMessage(LogLevel.Error, "Sending configuration messages to home Assistant failed: " + result);
         
         // Grid Power Number
@@ -112,7 +112,7 @@ public class HomeAssistantMqtt (Settings? settings, MqttConnection? mqttConnecti
         configMessage.Step = 0.001;
         topic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config";
         payload = JsonSerializer.Serialize(configMessage);
-        result = await _mqttConnection.SendMessageAsync(topic, payload);
+        result = await _mqttConnection.SendMessageAsync(topic, payload, true);
         if (result != null) LogMessage(LogLevel.Error, "Sending configuration messages to home Assistant failed: " + result);
 
         entityName = GridPowerName;
@@ -122,7 +122,7 @@ public class HomeAssistantMqtt (Settings? settings, MqttConnection? mqttConnecti
         configMessage.DeviceClass = "power";
         topic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config";
         payload = JsonSerializer.Serialize(configMessage);
-        result = await _mqttConnection.SendMessageAsync(topic, payload);
+        result = await _mqttConnection.SendMessageAsync(topic, payload, true);
 
         entityName = HousePowerName;
         configMessage.EntityName = entityName;
@@ -131,7 +131,7 @@ public class HomeAssistantMqtt (Settings? settings, MqttConnection? mqttConnecti
         configMessage.DeviceClass = "power";
         topic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config";
         payload = JsonSerializer.Serialize(configMessage);
-        result = await _mqttConnection.SendMessageAsync(topic, payload);
+        result = await _mqttConnection.SendMessageAsync(topic, payload, true);
 
         entityName = SolarPowerName;
         configMessage.EntityName = entityName;
@@ -139,7 +139,7 @@ public class HomeAssistantMqtt (Settings? settings, MqttConnection? mqttConnecti
         configMessage.StateTopic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/state";
         topic = $"homeassistant/number/{deviceName.Replace(" ","")}/{entityName.Replace(" ","")}/config";
         payload = JsonSerializer.Serialize(configMessage);
-        result = await _mqttConnection.SendMessageAsync(topic, payload);
+        result = await _mqttConnection.SendMessageAsync(topic, payload, true);
 
         // All done, return OK.
         return true;
