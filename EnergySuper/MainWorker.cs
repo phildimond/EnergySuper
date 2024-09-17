@@ -285,16 +285,17 @@ public class MainWorker : BackgroundService
             }
         }
         _currentData.LastPriceUpdate = DateTime.Now;
-        
-        if (Environment.UserInteractive)
-        {
-            Console.WriteLine(
-                $"{DateTime.Now:HH:mm:ss} Amber Electricity current prices:  Buy = {_currentData.CurrentPowerPriceBuy:0.000}c/kWh, " +
-                $"Sell = {_currentData.CurrentPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.CurrentPowerPriceControlledLoad:0.000}c/kWh");
-            Console.WriteLine(
-                $"{DateTime.Now:HH:mm:ss} Amber Electricity forecast prices: Buy = {_currentData.ForecastPowerPriceBuy:0.000}c/kWh, " +
-                $"Sell = {_currentData.ForecastPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.ForecastPowerPriceControlledLoad:0.000}c/kWh");
-        }
+
+        await LogMessage(LogLevel.Information,
+            $"{DateTime.Now:HH:mm:ss} Amber Electricity current prices:  " +
+            $"Buy = {_currentData.CurrentPowerPriceBuy:0.000}c/kWh, " +
+            $"Sell = {_currentData.CurrentPowerPriceSell:0.000}c/kWh, " +
+            $"Controlled Load = {_currentData.CurrentPowerPriceControlledLoad:0.000}c/kWh");
+        await LogMessage(LogLevel.Information,
+            $"{DateTime.Now:HH:mm:ss} Amber Electricity forecast prices: " +
+            $"Buy = {_currentData.ForecastPowerPriceBuy:0.000}c/kWh, " +
+            $"Sell = {_currentData.ForecastPowerPriceSell:0.000}c/kWh, " +
+            $"Controlled Load = {_currentData.ForecastPowerPriceControlledLoad:0.000}c/kWh");
 
         return true;
     }
@@ -326,7 +327,9 @@ public class MainWorker : BackgroundService
         
         // Calculate battery charge time if we have good previous data and we're actually charging
         TimeSpan timeToCharge = TimeSpan.Zero;
-        if (charge.Percentage < 99.99 && localPwMeters.Battery.InstantPower < 0 && DateTime.Now - _currentData.LastPowerUpdate < TimeSpan.FromMinutes(5))
+        if (charge.Percentage < 99.99 
+            && localPwMeters.Battery.InstantPower < 0 
+            && DateTime.Now - _currentData.LastPowerUpdate < TimeSpan.FromMinutes(5))
         {
             double chargeChange = charge.Percentage - _currentData.BatteryChargePercent;
             if (chargeChange > 0)
@@ -347,15 +350,14 @@ public class MainWorker : BackgroundService
         _currentData.LoadPowerKw = localPwMeters.Load.InstantPower / 1000; 
         _currentData.LastPowerUpdate = DateTime.Now;
 
-        if (Environment.UserInteractive)
-        {
-            Console.WriteLine(
-                $"{DateTime.Now:HH:mm:ss} PowerWall: House = {_currentData.LoadPowerKw:0.000}kW, Solar = {_currentData.SolarPowerKw:0.000}kW, " +
-                $"Grid = {_currentData.GridPowerKw:0.000}kW, Battery = {_currentData.BatteryPowerKw:0.000}kW, " +
-                $"Charge = {charge.Percentage:0.000}%");
-            if (timeToCharge != TimeSpan.Zero && localPwMeters.Battery.InstantPower < 0.250 && charge.Percentage < 99.99)
-                Console.WriteLine($"Battery should be charged in {timeToCharge.TotalSeconds} seconds by {(DateTime.Now + timeToCharge):HH:mm:ss}");
-        }
+        await LogMessage(LogLevel.Information, $"{DateTime.Now:HH:mm:ss} PowerWall: " +
+            $"House = {_currentData.LoadPowerKw:0.000}kW, Solar = {_currentData.SolarPowerKw:0.000}kW, " +
+            $"Grid = {_currentData.GridPowerKw:0.000}kW, Battery = {_currentData.BatteryPowerKw:0.000}kW, " +
+            $"Charge = {charge.Percentage:0.000}%");
+        if (timeToCharge != TimeSpan.Zero && localPwMeters.Battery.InstantPower < 0.250 && charge.Percentage < 99.99)
+            await LogMessage(LogLevel.Information,
+                $"Battery should be charged in {timeToCharge.TotalSeconds} seconds " +
+                $"by {(DateTime.Now + timeToCharge):HH:mm:ss}");
 
         return true;
     }
