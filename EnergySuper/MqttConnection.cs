@@ -17,6 +17,11 @@ public class MqttConnection
     /// MQTT message received
     /// </summary>
     public event MqttMessageReceivedHandler? MqttMessageReceived;
+
+    /// <summary>
+    /// A log message is available
+    /// </summary>
+    public event LogAvailableEventHandler? LogMessageAvailable;
     
     /// <summary>
     /// Constructor
@@ -55,7 +60,7 @@ public class MqttConnection
         // Connect to the MQTT broker
         var result = await _mqttClient.ConnectAsync(_clientOptions);
         
-        Console.WriteLine("MQTT Connection result was " + result.ResultCode);
+        LogMessage(LogLevel.Information, "MQTT Connection result was " + result.ResultCode);
         if (result.ResultCode != MqttClientConnectResultCode.Success) return result.ReasonString;
         
         _mqttClient.ApplicationMessageReceivedAsync += MqttClientOnApplicationMessageReceivedAsync;
@@ -138,6 +143,17 @@ public class MqttConnection
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Send a log message event
+    /// </summary>
+    /// <param name="level"></param>
+    /// <param name="message"></param>
+    private void LogMessage(LogLevel level, string message)
+    {
+        if (LogMessageAvailable != null) 
+            LogMessageAvailable.Invoke(this, new LogAvailableEventArgs(level, message));
     }
 }
 

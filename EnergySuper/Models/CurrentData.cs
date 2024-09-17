@@ -5,6 +5,7 @@ namespace EnergySuper.Models;
 /// </summary>
 public class CurrentData
 {
+    public DateTime HomeAssistantTime { get; set; } = DateTime.MinValue;
     public DateTime LastPowerUpdate { get; set; } = DateTime.MinValue;
     public double LoadPowerKw { get; set; } = 0.0;
     public double SolarPowerKw { get; set; } = 0.0;

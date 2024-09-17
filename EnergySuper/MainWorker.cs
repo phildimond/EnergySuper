@@ -1,3 +1,4 @@
+using System.Globalization;
 using AmberElectricityAPI;
 using AmberElectricityAPI.Models;
 using EnergySuper.EventArgsAndHandlers;
@@ -55,7 +56,8 @@ public class MainWorker : BackgroundService
             _amberElectricity.LowApiRemainingAlertThreshold = 10;
             _amberElectricity.LowAmberApiCallsRemainingEvent += OnAmberElectricityLowAmberApiCallsRemainingEvent;
             var prices = await _amberElectricity.GetCurrentPricesAsync(0, 0);
-            if (prices.records == null) throw new ApplicationException($"Unable to retrieve API data: Http response was {prices.httpStatusCode}");
+            if (prices.records == null) 
+                throw new ApplicationException($"Unable to retrieve API data: Http response was {prices.httpStatusCode}");
         }
         catch (Exception ex)
         {
@@ -69,20 +71,26 @@ public class MainWorker : BackgroundService
             _localPowerWall2 = 
                 new PowerWall2Local(_settings.PowerWallLocalUrl, _settings.PowerWallLocalEmail, _settings.PowerWallLocalPassword);
             var lir = _localPowerWall2.Login(); 
-            if (lir.Success) Console.WriteLine("Successfully logged in to PowerWall local API.");
-            else Console.WriteLine($"FAILED attempting to login to PowerWall local API. Http response was {lir.ResponseCode}");
+            if (lir.Success) 
+                await LogMessage(LogLevel.Information, "Successfully logged in to PowerWall local API.");
+            else 
+                await LogMessage(LogLevel.Error,$"FAILED attempting to login to PowerWall local API. Http response was {lir.ResponseCode}");
             var lor = _localPowerWall2.Logout();
-            if (lor.success) Console.WriteLine("Successfully logged out of PowerWall local API.");
-            else Console.WriteLine($"FAILED attempting to log out of PowerWall local API. Http response was {lor.httpStatusCode}");
+            if (lor.success) 
+                await LogMessage(LogLevel.Information, "Successfully logged out of PowerWall local API.");
+            else 
+                await LogMessage(LogLevel.Error, $"FAILED attempting to log out of PowerWall local API. Http response was {lor.httpStatusCode}");
         }
         catch (Exception ex)
         {
-            await LogMessage(LogLevel.Critical, "Failed to connect to the PowerWall 2 Local API: " + ex.Message);
+            await LogMessage(LogLevel.Error, "Failed to connect to the PowerWall 2 Local API: " + ex.Message);
             Environment.Exit(-1);
         }
 
         // Connect to the MQTT Broker. Log and exit on failure.
         _mqttConnection = new MqttConnection(_settings.MqttBroker, _settings.MqttPort, _settings.MqttUsername, _settings.MqttPassword);
+        _mqttConnection.MqttMessageReceived += MqttConnectionOnMqttMessageReceived;
+        _mqttConnection.LogMessageAvailable += async (sender, args) => { await LogMessage(args.Level, args.Message); };
         try
         {
             var result = await _mqttConnection.Connect();
@@ -105,9 +113,11 @@ public class MainWorker : BackgroundService
 
         // Subscribe to topics
         Exception? exr = await _mqttConnection.Subscribe(_settings.MqttTimeFeedTopic);
-        if (exr != null) await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{_settings.MqttTimeFeedTopic} - Error {exr.Message}");
+        if (exr != null) 
+            await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{_settings.MqttTimeFeedTopic} - Error {exr.Message}");
         exr = await _mqttConnection.Subscribe(_settings.MqttPowerFeedTopic);
-        if (exr != null) await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{_settings.MqttPowerFeedTopic} - Error {exr.Message}");
+        if (exr != null) 
+            await LogMessage(LogLevel.Error, $"Failed to subscribe to topic{_settings.MqttPowerFeedTopic} - Error {exr.Message}");
 
         // Main application loop
         while (!stoppingToken.IsCancellationRequested)
@@ -131,6 +141,27 @@ public class MainWorker : BackgroundService
     }
 
     /// <summary>
+    /// Handle any relevant received MQTT messages - specifically time
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    /// <exception cref="NotImplementedException"></exception>
+    private async void MqttConnectionOnMqttMessageReceived(object? sender, MqttMessageReceivedEventArgs e)
+    {
+        if (e.Topic == _settings.MqttTimeFeedTopic)
+        {
+            try
+            {
+                _currentData.HomeAssistantTime = DateTime.ParseExact(e.Payload, "yyyy.MM.dd HH:mm:ss", CultureInfo.InvariantCulture);
+            }
+            catch (Exception exception)
+            {
+                await LogMessage(LogLevel.Error, $"Failed to parse time string '{e.Payload}'. Exception: {exception.Message}");
+            } 
+        }
+    }
+
+    /// <summary>
     /// Low Amber API calls remaining event was triggered
     /// </summary>
     /// <param name="sender"></param>
@@ -145,8 +176,12 @@ public class MainWorker : BackgroundService
     /// </summary>
     private async Task<bool> UpdateData()
     {
+        // If we haven't had a time update, just exit.
+        if (_currentData.HomeAssistantTime == DateTime.MinValue) return false;
+        
         // If we're due to update Amber data, do that....
-        if (DateTime.Now - _lastAmberPollTime > TimeSpan.FromSeconds(_settings.AmberApiReadFrequencyInSeconds))
+        if (_currentData.HomeAssistantTime - _lastAmberPollTime > 
+            TimeSpan.FromSeconds(_settings.AmberApiReadFrequencyInSeconds))
         {
             _lastAmberPollTime = DateTime.Now;
             if (_amberElectricity != null)
@@ -163,7 +198,7 @@ public class MainWorker : BackgroundService
         }
 
         // If we're due to update PowerWall local data, do that....
-        if (DateTime.Now - _lastPowerWall2LocalPollTime >
+        if (_currentData.HomeAssistantTime - _lastPowerWall2LocalPollTime >
             TimeSpan.FromSeconds(_settings.Pw2LocalApiReadFrequencyInSeconds))
         {
             _lastPowerWall2LocalPollTime = DateTime.Now;
@@ -181,7 +216,7 @@ public class MainWorker : BackgroundService
         }
 
         // If we're due to update home assistant, do it
-        if (DateTime.Now - _lastHomeAssistantDataUpdateTime >
+        if (_currentData.HomeAssistantTime - _lastHomeAssistantDataUpdateTime >
             TimeSpan.FromSeconds(_settings.HomeAssistantUpdateFrequencyInSeconds))
         {
             _lastHomeAssistantDataUpdateTime = DateTime.Now;
@@ -250,10 +285,17 @@ public class MainWorker : BackgroundService
             }
         }
         _currentData.LastPriceUpdate = DateTime.Now;
-        Console.WriteLine($"{DateTime.Now:HH:mm:ss} Amber Electricity current prices:  Buy = {_currentData.CurrentPowerPriceBuy:0.000}c/kWh, " +
-                          $"Sell = {_currentData.CurrentPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.CurrentPowerPriceControlledLoad:0.000}c/kWh");
-        Console.WriteLine($"{DateTime.Now:HH:mm:ss} Amber Electricity forecast prices: Buy = {_currentData.ForecastPowerPriceBuy:0.000}c/kWh, " +
-                          $"Sell = {_currentData.ForecastPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.ForecastPowerPriceControlledLoad:0.000}c/kWh");
+        
+        if (Environment.UserInteractive)
+        {
+            Console.WriteLine(
+                $"{DateTime.Now:HH:mm:ss} Amber Electricity current prices:  Buy = {_currentData.CurrentPowerPriceBuy:0.000}c/kWh, " +
+                $"Sell = {_currentData.CurrentPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.CurrentPowerPriceControlledLoad:0.000}c/kWh");
+            Console.WriteLine(
+                $"{DateTime.Now:HH:mm:ss} Amber Electricity forecast prices: Buy = {_currentData.ForecastPowerPriceBuy:0.000}c/kWh, " +
+                $"Sell = {_currentData.ForecastPowerPriceSell:0.000}c/kWh, Controlled Load = {_currentData.ForecastPowerPriceControlledLoad:0.000}c/kWh");
+        }
+
         return true;
     }
 
@@ -304,12 +346,17 @@ public class MainWorker : BackgroundService
         _currentData.SolarPowerKw = localPwMeters.Solar.InstantPower / 1000;
         _currentData.LoadPowerKw = localPwMeters.Load.InstantPower / 1000; 
         _currentData.LastPowerUpdate = DateTime.Now;
-        Console.WriteLine($"{DateTime.Now:HH:mm:ss} PowerWall: House = {_currentData.LoadPowerKw:0.000}kW, Solar = {_currentData.SolarPowerKw:0.000}kW, " +
-                          $"Grid = {_currentData.GridPowerKw:0.000}kW, Battery = {_currentData.BatteryPowerKw:0.000}kW, " +
-                          $"Charge = {charge.Percentage:0.000}%");
-        if (timeToCharge != TimeSpan.Zero && localPwMeters.Battery.InstantPower < 0.250 && charge.Percentage < 99.99)
-            Console.WriteLine($"Battery should be charged in {timeToCharge.TotalSeconds} seconds by {(DateTime.Now + timeToCharge):HH:mm:ss}");
-        
+
+        if (Environment.UserInteractive)
+        {
+            Console.WriteLine(
+                $"{DateTime.Now:HH:mm:ss} PowerWall: House = {_currentData.LoadPowerKw:0.000}kW, Solar = {_currentData.SolarPowerKw:0.000}kW, " +
+                $"Grid = {_currentData.GridPowerKw:0.000}kW, Battery = {_currentData.BatteryPowerKw:0.000}kW, " +
+                $"Charge = {charge.Percentage:0.000}%");
+            if (timeToCharge != TimeSpan.Zero && localPwMeters.Battery.InstantPower < 0.250 && charge.Percentage < 99.99)
+                Console.WriteLine($"Battery should be charged in {timeToCharge.TotalSeconds} seconds by {(DateTime.Now + timeToCharge):HH:mm:ss}");
+        }
+
         return true;
     }
     
